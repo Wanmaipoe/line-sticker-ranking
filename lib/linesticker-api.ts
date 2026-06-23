@@ -20,6 +20,13 @@ export interface LsSticker {
   url: string;
   title: string;
   image_url: string;
+  image_alt?: string;
+  author?: string | null;
+  price?: number | null;
+  price_currency?: string | null;
+  description?: string | null;
+  first_seen_at?: string;
+  last_seen_at?: string;
 }
 
 export interface LsRankItem extends LsSticker {

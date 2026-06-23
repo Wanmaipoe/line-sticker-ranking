@@ -36,6 +36,10 @@ await client.executeMultiple(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     image_url TEXT,
+    author TEXT,
+    price INTEGER,
+    price_currency TEXT,
+    description TEXT,
     updated_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS rankings (
@@ -50,6 +54,7 @@ await client.executeMultiple(`
   CREATE INDEX IF NOT EXISTS idx_rankings_product ON rankings(product_id);
   CREATE INDEX IF NOT EXISTS idx_rankings_country_date ON rankings(country, snapshot_date, snapshot_hour);
   CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+  CREATE INDEX IF NOT EXISTS idx_products_author ON products(author);
 `);
 
 console.log('Turso schema initialized successfully!');

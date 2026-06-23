@@ -3,11 +3,20 @@
 import { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useFavorites } from '@/hooks/useFavorites';
+import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
+
+type SearchMode = 'sticker' | 'creator';
 
 interface Product {
   id: string;
   name: string;
   image_url: string | null;
+}
+
+interface CreatorResult {
+  author: string;
+  count: number;
 }
 
 interface Top5Item {
@@ -54,8 +63,7 @@ interface TrendingData {
 
 function toThaiTime(isoString: string | null): string {
   if (!isoString) return '';
-  const d = new Date(isoString);
-  return d.toLocaleString('en-GB', {
+  return new Date(isoString).toLocaleString('en-GB', {
     timeZone: 'Asia/Bangkok',
     year: 'numeric',
     month: '2-digit',
@@ -73,39 +81,80 @@ function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number)
   };
 }
 
-
 export default function HomePage() {
   const router = useRouter();
+  const { favorites, isFavorite, toggle, loaded: favLoaded } = useFavorites();
+
+  // Search
   const [query, setQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<SearchMode>('sticker');
   const [results, setResults] = useState<Product[]>([]);
+  const [creatorResults, setCreatorResults] = useState<CreatorResult[]>([]);
   const [searching, setSearching] = useState(false);
+
+  // Favorites panel toggle
+  const [showFavorites, setShowFavorites] = useState(false);
+
+  // Dashboard / trending
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [trending, setTrending] = useState<TrendingData | null>(null);
   const [loadingDash, setLoadingDash] = useState(true);
   const [loadingTrend, setLoadingTrend] = useState(true);
 
+  // Favorites data
+  const [favoritesData, setFavoritesData] = useState<ProductWithRankings[]>([]);
+  const [loadingFav, setLoadingFav] = useState(false);
+  const favoritesKey = favorites.join(',');
+
   useEffect(() => {
     fetch('/api/dashboard')
       .then((r) => r.json())
-      .then((d) => setDashboard(d))
+      .then(setDashboard)
       .catch(() => setDashboard({ date: null, updatedAt: null, countries: [] }))
       .finally(() => setLoadingDash(false));
 
     fetch('/api/trending')
       .then((r) => r.json())
-      .then((d) => setTrending(d))
+      .then(setTrending)
       .catch(() => setTrending(null))
       .finally(() => setLoadingTrend(false));
   }, []);
 
+  useEffect(() => {
+    if (!showFavorites || !favLoaded) return;
+    if (!favoritesKey) {
+      setFavoritesData([]);
+      return;
+    }
+    setLoadingFav(true);
+    fetch(`/api/favorites?ids=${favoritesKey}`)
+      .then((r) => r.json())
+      .then((d) => setFavoritesData(d.products ?? []))
+      .catch(() => setFavoritesData([]))
+      .finally(() => setLoadingFav(false));
+  }, [showFavorites, favoritesKey, favLoaded]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const search = useCallback(
-    debounce(async (q: string) => {
-      if (q.length < 2) { setResults([]); return; }
+    debounce(async (q: string, mode: SearchMode) => {
+      if (q.length < 2) {
+        setResults([]);
+        setCreatorResults([]);
+        return;
+      }
       setSearching(true);
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        setResults(data.results ?? []);
+        if (mode === 'sticker') {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          setResults(data.results ?? []);
+          setCreatorResults([]);
+        } else {
+          const res = await fetch(`/api/creator?q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          setCreatorResults(data.results ?? []);
+          setResults([]);
+        }
       } finally {
         setSearching(false);
       }
@@ -115,10 +164,17 @@ export default function HomePage() {
 
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
     setQuery(e.target.value);
-    search(e.target.value);
+    search(e.target.value, searchMode);
   }
 
-  const showSearch = query.length >= 2;
+  function handleModeChange(mode: SearchMode) {
+    setSearchMode(mode);
+    setResults([]);
+    setCreatorResults([]);
+    if (query.length >= 2) search(query, mode);
+  }
+
+  const showDropdown = query.length >= 2;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -130,47 +186,107 @@ export default function HomePage() {
             <span className="font-bold text-gray-800 text-lg">LineStickerRanking</span>
           </div>
 
-          {/* Search bar */}
+          {/* Search + mode toggle */}
           <div className="relative flex-1 max-w-lg">
-            <input
-              type="text"
-              value={query}
-              onChange={handleInput}
-              placeholder="Search stickers e.g. Smug, Chiikawa, Tangkwa..."
-              className="w-full px-4 py-2 rounded-xl border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm transition-colors"
-            />
-            {searching && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Searching...</span>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={query}
+                  onChange={handleInput}
+                  placeholder={
+                    searchMode === 'sticker'
+                      ? 'Search stickers e.g. Chiikawa, Tangkwa...'
+                      : 'Search by creator name...'
+                  }
+                  className="w-full px-4 py-2 rounded-xl border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm transition-colors"
+                />
+                {searching && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                    Searching...
+                  </span>
+                )}
+              </div>
+              <div className="flex rounded-xl border border-gray-200 overflow-hidden text-xs flex-shrink-0">
+                <button
+                  onClick={() => handleModeChange('sticker')}
+                  className={`px-2.5 py-2 transition-colors ${
+                    searchMode === 'sticker' ? 'bg-[#06c755] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  Sticker
+                </button>
+                <button
+                  onClick={() => handleModeChange('creator')}
+                  className={`px-2.5 py-2 transition-colors ${
+                    searchMode === 'creator' ? 'bg-[#06c755] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  Creator
+                </button>
+              </div>
+            </div>
 
-            {showSearch && results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden z-20">
+            {/* Sticker dropdown */}
+            {showDropdown && searchMode === 'sticker' && results.length > 0 && (
+              <div className="absolute top-full left-0 right-20 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden z-20">
                 {results.map((p) => (
                   <button
                     key={p.id}
-                    onClick={() => { router.push(`/sticker/${p.id}`); setQuery(''); setResults([]); }}
+                    onClick={() => {
+                      router.push(`/sticker/${p.id}`);
+                      setQuery('');
+                      setResults([]);
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-green-50 transition-colors border-b border-gray-50 last:border-0 text-left"
                   >
                     <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
                       <Image
                         src={`https://stickershop.line-scdn.net/stickershop/v1/product/${p.id}/LINEStorePC/main.png`}
-                        alt={p.name} width={36} height={36}
+                        alt={p.name}
+                        width={36}
+                        height={36}
                         className="object-contain w-full h-full"
-                        onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.visibility = 'hidden';
+                        }}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-700 truncate">{p.name}</p>
                       <p className="text-xs text-gray-400">ID: {p.id}</p>
                     </div>
-                    <span className="text-xs text-green-500 flex-shrink-0">View ranking →</span>
+                    <span className="text-xs text-green-500 flex-shrink-0">View →</span>
                   </button>
                 ))}
               </div>
             )}
 
-            {showSearch && results.length === 0 && !searching && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg p-4 text-center text-sm text-gray-400 z-20">
+            {/* Creator dropdown */}
+            {showDropdown && searchMode === 'creator' && creatorResults.length > 0 && (
+              <div className="absolute top-full left-0 right-20 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden z-20">
+                {creatorResults.map((c) => (
+                  <button
+                    key={c.author}
+                    onClick={() => {
+                      router.push(`/creator/${encodeURIComponent(c.author)}`);
+                      setQuery('');
+                      setCreatorResults([]);
+                    }}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-green-50 transition-colors border-b border-gray-50 last:border-0 text-left"
+                  >
+                    <span className="text-sm font-medium text-gray-700">👤 {c.author}</span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">{c.count} packs</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* No results */}
+            {showDropdown && !searching &&
+              ((searchMode === 'sticker' && results.length === 0) ||
+                (searchMode === 'creator' && creatorResults.length === 0)) && (
+              <div className="absolute top-full left-0 right-20 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg p-4 text-center text-sm text-gray-400 z-20">
                 No results for &ldquo;{query}&rdquo;
               </div>
             )}
@@ -182,81 +298,141 @@ export default function HomePage() {
             </span>
           )}
         </div>
+
+        {/* Favorites toggle */}
+        <div className="max-w-6xl mx-auto px-4 pb-0 flex items-center gap-2 border-t border-gray-50 py-1.5">
+          <button
+            onClick={() => setShowFavorites((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              showFavorites
+                ? 'bg-red-50 text-red-400 border border-red-200'
+                : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200'
+            }`}
+          >
+            ♥ Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}
+          </button>
+          {showFavorites && (
+            <span className="text-xs text-gray-400">— click ♥ on any sticker detail page to save</span>
+          )}
+        </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-10">
+
+        {/* Favorites Panel */}
+        {showFavorites && (
+          <section className="bg-white rounded-2xl shadow-sm border border-red-100 p-5">
+            <h2 className="font-bold text-gray-700 text-base mb-4">♥ Saved Favorites</h2>
+            {!favLoaded || loadingFav ? (
+              <div className="text-center py-8 text-gray-400 text-sm">Loading...</div>
+            ) : favorites.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <p className="text-3xl mb-2">♡</p>
+                <p className="text-sm">No favorites yet — open a sticker and tap ♥ to save it here</p>
+              </div>
+            ) : (
+              <StickersRankTable
+                products={favoritesData}
+                isFavorite={isFavorite}
+                onToggleFavorite={toggle}
+                showAuthorLink
+              />
+            )}
+          </section>
+        )}
 
         {/* Top 5 Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-gray-700 text-base">🏆 Top 5 Per Country Today</h2>
-            <span className="text-xs text-gray-400">Click a sticker to see full ranking</span>
+            <span className="text-xs text-gray-400">Click a sticker to see full ranking history</span>
           </div>
 
-          {loadingDash && (
+            {loadingDash && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-4 animate-pulse h-52" />
+                ))}
+              </div>
+            )}
+
+            {!loadingDash && !dashboard?.countries?.length && (
+              <div className="text-center py-16 text-gray-400">
+                <p className="text-4xl mb-3">📭</p>
+                <p className="text-sm">No data yet — wait for the cron job or run the seed script</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl p-4 animate-pulse h-52" />
+              {dashboard?.countries.map((country) => (
+                <div
+                  key={country.code}
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
+                >
+                  <div className="px-3 py-2.5 border-b border-gray-50 flex items-center gap-2">
+                    <span className="text-xl">{country.flag}</span>
+                    <span className="font-semibold text-sm text-gray-700">{country.name}</span>
+                  </div>
+                  <div className="p-2 flex-1">
+                    {country.top5.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => router.push(`/sticker/${item.id}`)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors text-left group"
+                      >
+                        <span
+                          className={`text-xs font-bold w-5 text-right flex-shrink-0 ${
+                            item.rank === 1
+                              ? 'text-yellow-500'
+                              : item.rank === 2
+                              ? 'text-gray-400'
+                              : item.rank === 3
+                              ? 'text-orange-400'
+                              : 'text-gray-300'
+                          }`}
+                        >
+                          #{item.rank}
+                        </span>
+                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
+                          <Image
+                            src={item.image_url}
+                            alt={item.name}
+                            width={32}
+                            height={32}
+                            className="object-contain w-full h-full"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.visibility = 'hidden';
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-600 truncate group-hover:text-green-700 leading-tight">
+                          {item.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="px-3 py-2 border-t border-gray-50">
+                    <a
+                      href={`/country/${country.code}`}
+                      className="text-xs text-green-500 hover:text-green-600 font-medium w-full text-center block"
+                    >
+                      More → Top 50
+                    </a>
+                  </div>
+                </div>
               ))}
             </div>
-          )}
-
-          {!loadingDash && !dashboard?.countries?.length && (
-            <div className="text-center py-16 text-gray-400">
-              <p className="text-4xl mb-3">📭</p>
-              <p className="text-sm">No data in database yet</p>
-              <p className="text-xs mt-1">Run <code className="bg-gray-100 px-1 rounded">node scripts/seed.mjs</code> to seed data</p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {dashboard?.countries.map((country) => (
-              <div key={country.code} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-3 py-2.5 border-b border-gray-50 flex items-center gap-2">
-                  <span className="text-xl">{country.flag}</span>
-                  <span className="font-semibold text-sm text-gray-700">{country.name}</span>
-                </div>
-                <div className="p-2">
-                  {country.top5.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => router.push(`/sticker/${item.id}`)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors text-left group"
-                    >
-                      <span className={`text-xs font-bold w-5 text-right flex-shrink-0 ${
-                        item.rank === 1 ? 'text-yellow-500' :
-                        item.rank === 2 ? 'text-gray-400' :
-                        item.rank === 3 ? 'text-orange-400' : 'text-gray-300'
-                      }`}>#{item.rank}</span>
-                      <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
-                        <Image src={item.image_url} alt={item.name} width={32} height={32}
-                          className="object-contain w-full h-full"
-                          onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-600 truncate group-hover:text-green-700 leading-tight">
-                        {item.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+          </section>
 
         {/* Trending Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="font-bold text-gray-700 text-base">🔥 Trending — Biggest rank gains in the last 3 days</h2>
-              {trending && (
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Comparing {trending.oldDate} → {trending.latestDate}
-                </p>
-              )}
-            </div>
-            <span className="text-xs text-gray-400">Click a sticker to see full ranking</span>
+            <h2 className="font-bold text-gray-700 text-base">🔥 Trending — Biggest rank gains</h2>
+            {trending && (
+              <p className="text-xs text-gray-400">
+                {trending.oldDate} → {trending.latestDate}
+              </p>
+            )}
           </div>
 
           {loadingTrend && (
@@ -269,7 +445,10 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {trending?.countries.map((country) => (
-              <div key={country.code} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div
+                key={country.code}
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              >
                 <div className="px-3 py-2.5 border-b border-gray-50 flex items-center gap-2">
                   <span className="text-xl">{country.flag}</span>
                   <span className="font-semibold text-sm text-gray-700">{country.name}</span>
@@ -285,9 +464,15 @@ export default function HomePage() {
                         ▲{item.improvement}
                       </span>
                       <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
-                        <Image src={item.image_url} alt={item.name} width={32} height={32}
+                        <Image
+                          src={item.image_url}
+                          alt={item.name}
+                          width={32}
+                          height={32}
                           className="object-contain w-full h-full"
-                          onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.visibility = 'hidden';
+                          }}
                         />
                       </div>
                       <span className="text-xs text-gray-600 truncate group-hover:text-green-700 leading-tight flex-1">

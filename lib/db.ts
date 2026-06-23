@@ -15,6 +15,10 @@ export interface Product {
   id: string;
   name: string;
   image_url: string | null;
+  author: string | null;
+  price: number | null;
+  price_currency: string | null;
+  description: string | null;
   updated_at: string;
 }
 
@@ -27,17 +31,87 @@ export interface Ranking {
   created_at: string;
 }
 
+function toProduct(row: Record<string, unknown>): Product {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    image_url: row.image_url as string | null,
+    author: row.author as string | null,
+    price: row.price as number | null,
+    price_currency: row.price_currency as string | null,
+    description: row.description as string | null,
+    updated_at: row.updated_at as string,
+  };
+}
+
 export async function searchProducts(client: Client, query: string, limit = 20): Promise<Product[]> {
   const result = await client.execute({
     sql: `SELECT * FROM products WHERE name LIKE ? ORDER BY name LIMIT ?`,
     args: [`%${query}%`, limit],
   });
+  return result.rows.map(toProduct);
+}
+
+export async function searchAuthors(client: Client, query: string, limit = 10) {
+  const result = await client.execute({
+    sql: `SELECT author, COUNT(*) as count
+          FROM products
+          WHERE author LIKE ? AND author IS NOT NULL
+          GROUP BY author
+          ORDER BY count DESC
+          LIMIT ?`,
+    args: [`%${query}%`, limit],
+  });
   return result.rows.map((row) => ({
-    id: row.id as string,
-    name: row.name as string,
-    image_url: row.image_url as string | null,
-    updated_at: row.updated_at as string,
+    author: row.author as string,
+    count: row.count as number,
   }));
+}
+
+export async function getProductsByAuthor(client: Client, author: string, limit = 100): Promise<Product[]> {
+  const result = await client.execute({
+    sql: `SELECT * FROM products WHERE author = ? ORDER BY name LIMIT ?`,
+    args: [author, limit],
+  });
+  return result.rows.map(toProduct);
+}
+
+export async function getProductsWithRankings(
+  client: Client,
+  productIds: string[],
+  countries: string[]
+): Promise<Record<string, Record<string, number | null>>> {
+  if (!productIds.length) return {};
+
+  const idPh = productIds.map(() => '?').join(',');
+  const ccPh = countries.map(() => '?').join(',');
+
+  const result = await client.execute({
+    sql: `WITH latest AS (
+      SELECT product_id, country, MAX(snapshot_date) AS max_date
+      FROM rankings
+      WHERE product_id IN (${idPh}) AND country IN (${ccPh})
+      GROUP BY product_id, country
+    )
+    SELECT r.product_id, r.country, MIN(r.rank) AS rank
+    FROM latest l
+    JOIN rankings r ON r.product_id = l.product_id
+      AND r.country = l.country
+      AND r.snapshot_date = l.max_date
+    GROUP BY r.product_id, r.country`,
+    args: [...productIds, ...countries],
+  });
+
+  const out: Record<string, Record<string, number | null>> = {};
+  for (const id of productIds) {
+    out[id] = Object.fromEntries(countries.map((cc) => [cc, null]));
+  }
+  for (const row of result.rows) {
+    const pid = row.product_id as string;
+    const cc = row.country as string;
+    if (out[pid]) out[pid][cc] = row.rank as number;
+  }
+  return out;
 }
 
 export async function getLatestRankingsForProduct(client: Client, productId: string) {

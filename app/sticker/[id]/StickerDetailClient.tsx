@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import GlobalRankTable from '@/components/GlobalRankTable';
 import RankGraph from '@/components/RankGraph';
 import { COUNTRY_MAP } from '@/lib/countries';
+import { useFavorites } from '@/hooks/useFavorites';
 
 interface RankRow {
   country: string;
@@ -25,10 +27,25 @@ interface Props {
   id: string;
   name: string;
   imageUrl: string;
+  author: string | null;
+  price: number | null;
+  priceCurrency: string | null;
+  description: string | null;
   initialRankings: RankRow[];
 }
 
-export default function StickerDetailClient({ id, name, imageUrl, initialRankings }: Props) {
+export default function StickerDetailClient({
+  id,
+  name,
+  imageUrl,
+  author,
+  price,
+  priceCurrency,
+  description,
+  initialRankings,
+}: Props) {
+  const router = useRouter();
+  const { isFavorite, toggle, loaded: favLoaded } = useFavorites();
   const [rankings, setRankings] = useState<RankRow[]>(initialRankings);
   const [selectedCountry, setSelectedCountry] = useState<string>(
     initialRankings[0]?.country ?? 'th'
@@ -64,46 +81,78 @@ export default function StickerDetailClient({ id, name, imageUrl, initialRanking
   }
 
   const countryInfo = COUNTRY_MAP[selectedCountry];
+  const favorited = favLoaded && isFavorite(id);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <a href="/" className="text-sm text-green-600 hover:underline">← LineStickerRanking</a>
         </div>
 
         {/* Sticker Info Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 flex items-center gap-4">
-          <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center flex-shrink-0">
-            <Image
-              src={imageUrl}
-              alt={name}
-              width={80}
-              height={80}
-              className="object-contain"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-800 truncate">{name}</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Product ID: {id}</p>
-            <a
-              href={`https://store.line.me/stickershop/product/${id}/th`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-green-500 hover:underline mt-1 inline-block"
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+          <div className="flex items-start gap-4">
+            <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center flex-shrink-0">
+              <Image
+                src={imageUrl}
+                alt={name}
+                width={80}
+                height={80}
+                className="object-contain"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <h1 className="text-lg font-bold text-gray-800 leading-snug">{name}</h1>
+                <button
+                  onClick={() => toggle(id)}
+                  disabled={!favLoaded}
+                  className={`text-2xl flex-shrink-0 transition-colors ${
+                    favorited ? 'text-red-400' : 'text-gray-200 hover:text-red-300'
+                  }`}
+                  title={favorited ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  ♥
+                </button>
+              </div>
+              {author && (
+                <button
+                  onClick={() => router.push(`/creator/${encodeURIComponent(author)}`)}
+                  className="text-sm text-green-600 hover:underline mt-0.5"
+                >
+                  👤 {author}
+                </button>
+              )}
+              <p className="text-xs text-gray-400 mt-1">Product ID: {id}</p>
+              <div className="flex items-center gap-3 mt-2 flex-wrap">
+                <a
+                  href={`https://store.line.me/stickershop/product/${id}/th`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-green-500 hover:underline"
+                >
+                  Open in LINE Store ↗
+                </a>
+                {price != null && (
+                  <span className="text-xs text-gray-400">
+                    {price.toLocaleString()} {priceCurrency ?? ''}
+                  </span>
+                )}
+              </div>
+              {description && (
+                <p className="text-xs text-gray-500 mt-2 line-clamp-2">{description}</p>
+              )}
+            </div>
+            <button
+              onClick={refreshRankings}
+              disabled={refreshing}
+              className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex-shrink-0 self-start"
             >
-              Open in LINE Store ↗
-            </a>
+              {refreshing ? 'Loading...' : '↻ Refresh'}
+            </button>
           </div>
-          <button
-            onClick={refreshRankings}
-            disabled={refreshing}
-            className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
-          >
-            {refreshing ? 'Loading...' : '↻ Refresh'}
-          </button>
         </div>
 
         {/* Global Rank Matrix */}

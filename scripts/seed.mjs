@@ -98,13 +98,21 @@ async function main() {
 
         const statements = items.flatMap(item => [
           {
-            sql: `INSERT INTO products (id, name, image_url, updated_at)
-                  VALUES (?, ?, ?, ?)
+            sql: `INSERT INTO products (id, name, image_url, author, price, price_currency, description, updated_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                   ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
                     image_url = excluded.image_url,
+                    author = COALESCE(excluded.author, products.author),
+                    price = COALESCE(excluded.price, products.price),
+                    price_currency = COALESCE(excluded.price_currency, products.price_currency),
+                    description = COALESCE(excluded.description, products.description),
                     updated_at = excluded.updated_at`,
-            args: [item.sticker_id, item.title, item.image_url ?? null, now],
+            args: [
+              item.sticker_id, item.title, item.image_url ?? null,
+              item.author ?? null, item.price ?? null, item.price_currency ?? null,
+              item.description ?? null, now,
+            ],
           },
           {
             sql: `INSERT OR REPLACE INTO rankings (product_id, country, rank, snapshot_date, snapshot_hour, created_at)
