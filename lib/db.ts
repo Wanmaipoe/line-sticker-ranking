@@ -19,6 +19,7 @@ export interface Product {
   price: number | null;
   price_currency: string | null;
   description: string | null;
+  sticker_type: string | null;
   updated_at: string;
 }
 
@@ -40,6 +41,7 @@ function toProduct(row: Record<string, unknown>): Product {
     price: row.price as number | null,
     price_currency: row.price_currency as string | null,
     description: row.description as string | null,
+    sticker_type: row.sticker_type as string | null,
     updated_at: row.updated_at as string,
   };
 }

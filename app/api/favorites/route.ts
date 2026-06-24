@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   const idPh = ids.map(() => '?').join(',');
   const result = await client.execute({
-    sql: `SELECT id, name, image_url, author FROM products WHERE id IN (${idPh})`,
+    sql: `SELECT id, name, image_url, author, sticker_type FROM products WHERE id IN (${idPh})`,
     args: ids,
   });
 
@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     name: row.name as string,
     image_url: row.image_url as string | null,
     author: row.author as string | null,
+    sticker_type: row.sticker_type as string | null,
   }));
 
   const rankings = await getProductsWithRankings(client, ids, FEATURED);

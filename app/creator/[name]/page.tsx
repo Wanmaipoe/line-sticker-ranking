@@ -23,6 +23,7 @@ export default async function CreatorPage({ params }: Props) {
     name: p.name,
     image_url: p.image_url,
     author: p.author,
+    sticker_type: p.sticker_type,
     rankings: rankings[p.id] ?? Object.fromEntries(FEATURED.map((cc) => [cc, null])),
   }));
 

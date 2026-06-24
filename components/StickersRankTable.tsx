@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { COUNTRY_MAP } from '@/lib/countries';
+import TypeBadge from '@/components/TypeBadge';
 
 const FEATURED = ['jp', 'th', 'tw', 'id', 'us'] as const;
 const MOBILE_HIDDEN = new Set(['id', 'us']);
@@ -12,6 +13,7 @@ export interface ProductWithRankings {
   name: string;
   image_url: string | null;
   author?: string | null;
+  sticker_type?: string | null;
   rankings: Record<string, number | null>;
 }
 
@@ -90,7 +92,10 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
                     />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-700 truncate leading-tight">{p.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-gray-700 truncate leading-tight">{p.name}</p>
+                      <TypeBadge type={p.sticker_type} />
+                    </div>
                     {p.author && (
                       <p
                         className={`text-xs text-gray-400 truncate ${

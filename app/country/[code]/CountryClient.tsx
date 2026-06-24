@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useFavorites } from '@/hooks/useFavorites';
+import TypeBadge from '@/components/TypeBadge';
 
 interface RankItem {
   rank: number;
@@ -10,6 +11,7 @@ interface RankItem {
   name: string;
   image_url: string | null;
   author: string | null;
+  sticker_type: string | null;
 }
 
 interface Props {
@@ -81,9 +83,12 @@ export default function CountryClient({ code, name, flag, date, items }: Props) 
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700 truncate group-hover:text-green-700">
-                    {item.name}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-gray-700 truncate group-hover:text-green-700">
+                      {item.name}
+                    </p>
+                    <TypeBadge type={item.sticker_type} />
+                  </div>
                   {item.author && (
                     <p
                       className="text-xs text-gray-400 hover:text-green-600 cursor-pointer truncate"

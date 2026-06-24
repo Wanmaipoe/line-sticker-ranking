@@ -20,11 +20,11 @@ export default async function CountryPage({ params }: Props) {
   const latestDate = dateRes.rows[0]?.latest as string | null;
   const latestHour = dateRes.rows[0]?.latest_hour as number | null;
 
-  let items: { rank: number; id: string; name: string; image_url: string | null; author: string | null }[] = [];
+  let items: { rank: number; id: string; name: string; image_url: string | null; author: string | null; sticker_type: string | null }[] = [];
 
   if (latestDate) {
     const result = await client.execute({
-      sql: `SELECT r.rank, p.id, p.name, p.image_url, p.author
+      sql: `SELECT r.rank, p.id, p.name, p.image_url, p.author, p.sticker_type
             FROM rankings r
             JOIN products p ON p.id = r.product_id
             WHERE r.country = ? AND r.snapshot_date = ? AND r.snapshot_hour = ?
@@ -38,6 +38,7 @@ export default async function CountryPage({ params }: Props) {
       name: row.name as string,
       image_url: row.image_url as string | null,
       author: row.author as string | null,
+      sticker_type: row.sticker_type as string | null,
     }));
   }
 
