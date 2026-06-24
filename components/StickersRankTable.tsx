@@ -90,10 +90,10 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
                     />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-700 truncate max-w-36 leading-tight">{p.name}</p>
+                    <p className="text-sm font-medium text-gray-700 truncate leading-tight">{p.name}</p>
                     {p.author && (
                       <p
-                        className={`text-xs text-gray-400 truncate max-w-36 ${
+                        className={`text-xs text-gray-400 truncate ${
                           showAuthorLink ? 'hover:text-green-600 cursor-pointer' : ''
                         }`}
                         onClick={

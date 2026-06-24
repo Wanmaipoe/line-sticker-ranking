@@ -87,18 +87,22 @@ export async function getProductsWithRankings(
   const ccPh = countries.map(() => '?').join(',');
 
   const result = await client.execute({
-    sql: `WITH latest AS (
+    sql: `WITH latest_date AS (
       SELECT product_id, country, MAX(snapshot_date) AS max_date
       FROM rankings
       WHERE product_id IN (${idPh}) AND country IN (${ccPh})
       GROUP BY product_id, country
+    ),
+    latest_hour AS (
+      SELECT r.product_id, r.country, MAX(r.snapshot_hour) AS max_hour
+      FROM rankings r
+      JOIN latest_date l ON r.product_id = l.product_id AND r.country = l.country AND r.snapshot_date = l.max_date
+      GROUP BY r.product_id, r.country
     )
-    SELECT r.product_id, r.country, MIN(r.rank) AS rank
-    FROM latest l
-    JOIN rankings r ON r.product_id = l.product_id
-      AND r.country = l.country
-      AND r.snapshot_date = l.max_date
-    GROUP BY r.product_id, r.country`,
+    SELECT r.product_id, r.country, r.rank
+    FROM rankings r
+    JOIN latest_date ld ON r.product_id = ld.product_id AND r.country = ld.country AND r.snapshot_date = ld.max_date
+    JOIN latest_hour lh ON r.product_id = lh.product_id AND r.country = lh.country AND r.snapshot_hour = lh.max_hour`,
     args: [...productIds, ...countries],
   });
 

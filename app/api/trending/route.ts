@@ -38,13 +38,15 @@ export async function GET() {
                   ON old.product_id = new.product_id
                   AND old.country = new.country
                   AND old.snapshot_date = ?
+                  AND old.snapshot_hour = (SELECT MAX(snapshot_hour) FROM rankings WHERE country = ? AND snapshot_date = ?)
                 JOIN products p ON p.id = new.product_id
                 WHERE new.country = ?
                   AND new.snapshot_date = ?
+                  AND new.snapshot_hour = (SELECT MAX(snapshot_hour) FROM rankings WHERE country = ? AND snapshot_date = ?)
                   AND old.rank > new.rank
                 ORDER BY improvement DESC
                 LIMIT 5`,
-          args: [oldDate, code, latestDate],
+          args: [oldDate, code, oldDate, code, latestDate, code, latestDate],
         });
         const trending = trendResult.rows.map((row) => ({
           id: row.id as string,
