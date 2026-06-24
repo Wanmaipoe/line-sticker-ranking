@@ -47,6 +47,8 @@ interface TrendingBlock {
   name: string;
   flag: string;
   trending: TrendItem[];
+  from: number | null;
+  to: number | null;
 }
 
 interface DashboardData {
@@ -57,8 +59,6 @@ interface DashboardData {
 
 interface TrendingData {
   countries: TrendingBlock[];
-  latestDate: string;
-  oldDate: string;
 }
 
 function toThaiTime(isoString: string | null): string {
@@ -68,6 +68,15 @@ function toThaiTime(isoString: string | null): string {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function toThaiHM(ms: number | null): string {
+  if (!ms) return '';
+  return new Date(ms).toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Bangkok',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -445,15 +454,18 @@ export default function HomePage() {
             </div>
           </section>
 
-        {/* Trending Section */}
+        {/* Movers Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-700 text-base">🔥 Trending — Biggest rank gains</h2>
-            {trending && (
-              <p className="text-xs text-gray-400">
-                {trending.oldDate} → {trending.latestDate}
-              </p>
-            )}
+            <h2 className="font-bold text-gray-700 text-base">🔥 Movers — biggest jumps since the last update</h2>
+            {(() => {
+              const w = trending?.countries.find((c) => c.to);
+              return w ? (
+                <p className="text-xs text-gray-400">
+                  {toThaiHM(w.from)} → {toThaiHM(w.to)} (BKK)
+                </p>
+              ) : null;
+            })()}
           </div>
 
           {loadingTrend && (
@@ -461,6 +473,14 @@ export default function HomePage() {
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl p-4 animate-pulse h-52" />
               ))}
+            </div>
+          )}
+
+          {!loadingTrend && !trending?.countries?.length && (
+            <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-100">
+              <p className="text-3xl mb-2">⏱️</p>
+              <p className="text-sm">Collecting hourly data — movers appear once two consecutive hourly snapshots exist.</p>
+              <p className="text-xs text-gray-300 mt-1">Rankings refresh every hour around :30 (BKK).</p>
             </div>
           )}
 
