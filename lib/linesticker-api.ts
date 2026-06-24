@@ -1,10 +1,23 @@
 const BASE = 'https://linesticker.app';
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Referer': 'https://linesticker.app/',
+  'Origin': 'https://linesticker.app',
+  'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-origin',
+};
 
 async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'User-Agent': UA, Accept: 'application/json' },
+    headers: BROWSER_HEADERS,
     next: { revalidate: 0 },
   });
   if (!res.ok) throw new Error(`linesticker.app${path} → HTTP ${res.status}`);
