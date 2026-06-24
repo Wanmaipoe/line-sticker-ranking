@@ -270,7 +270,10 @@ export async function getCreatorLeaderboard(
     .map((c) => {
       c.distinct_stickers = c._stickers.size;
       c.countries = c._countries.size;
-      c.slots.sort((a, b) => a.rank - b.rank); // best rank first
+      // group by country priority (JP > TH > TW > ID > US), then best rank within each
+      c.slots.sort(
+        (a, b) => (COUNTRY_ORDER[a.country] ?? 99) - (COUNTRY_ORDER[b.country] ?? 99) || a.rank - b.rank
+      );
       const { _stickers, _countries, ...rest } = c;
       void _stickers; void _countries;
       return rest;
