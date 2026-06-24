@@ -14,10 +14,11 @@ export default async function CountryPage({ params }: Props) {
   const client = getDb();
 
   const dateRes = await client.execute({
-    sql: `SELECT MAX(snapshot_date) AS latest FROM rankings WHERE country = ?`,
-    args: [cc],
+    sql: `SELECT MAX(snapshot_date) AS latest, MAX(snapshot_hour) AS latest_hour FROM rankings WHERE country = ? AND snapshot_date = (SELECT MAX(snapshot_date) FROM rankings WHERE country = ?)`,
+    args: [cc, cc],
   });
   const latestDate = dateRes.rows[0]?.latest as string | null;
+  const latestHour = dateRes.rows[0]?.latest_hour as number | null;
 
   let items: { rank: number; id: string; name: string; image_url: string | null; author: string | null }[] = [];
 
@@ -26,10 +27,10 @@ export default async function CountryPage({ params }: Props) {
       sql: `SELECT r.rank, p.id, p.name, p.image_url, p.author
             FROM rankings r
             JOIN products p ON p.id = r.product_id
-            WHERE r.country = ? AND r.snapshot_date = ?
+            WHERE r.country = ? AND r.snapshot_date = ? AND r.snapshot_hour = ?
             ORDER BY r.rank ASC
             LIMIT 50`,
-      args: [cc, latestDate],
+      args: [cc, latestDate, latestHour],
     });
     items = result.rows.map((row) => ({
       rank: row.rank as number,
