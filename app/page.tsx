@@ -134,33 +134,32 @@ export default function HomePage() {
       .finally(() => setLoadingFav(false));
   }, [showFavorites, favoritesKey, favLoaded]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const search = useCallback(
-    debounce(async (q: string, mode: SearchMode) => {
-      if (q.length < 2) {
-        setResults([]);
+  const doSearch = useCallback(async (q: string, mode: SearchMode) => {
+    if (q.length < 2) {
+      setResults([]);
+      setCreatorResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      if (mode === 'sticker') {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        setResults(data.results ?? []);
         setCreatorResults([]);
-        return;
+      } else {
+        const res = await fetch(`/api/creator?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        setCreatorResults(data.results ?? []);
+        setResults([]);
       }
-      setSearching(true);
-      try {
-        if (mode === 'sticker') {
-          const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-          const data = await res.json();
-          setResults(data.results ?? []);
-          setCreatorResults([]);
-        } else {
-          const res = await fetch(`/api/creator?q=${encodeURIComponent(q)}`);
-          const data = await res.json();
-          setCreatorResults(data.results ?? []);
-          setResults([]);
-        }
-      } finally {
-        setSearching(false);
-      }
-    }, 350),
-    []
-  );
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const search = useCallback(debounce(doSearch, 350), [doSearch]);
 
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
     setQuery(e.target.value);
@@ -189,24 +188,6 @@ export default function HomePage() {
           {/* Search + mode toggle */}
           <div className="relative flex-1 max-w-lg">
             <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={query}
-                  onChange={handleInput}
-                  placeholder={
-                    searchMode === 'sticker'
-                      ? 'Search stickers e.g. Chiikawa, Tangkwa...'
-                      : 'Search by creator name...'
-                  }
-                  className="w-full px-4 py-2 rounded-xl border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm transition-colors"
-                />
-                {searching && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-                    Searching...
-                  </span>
-                )}
-              </div>
               <div className="flex rounded-xl border border-gray-200 overflow-hidden text-xs flex-shrink-0">
                 <button
                   onClick={() => handleModeChange('sticker')}
@@ -225,11 +206,31 @@ export default function HomePage() {
                   Creator
                 </button>
               </div>
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={query}
+                  onChange={handleInput}
+                  onKeyDown={(e) => e.key === 'Enter' && doSearch(query, searchMode)}
+                  placeholder={
+                    searchMode === 'sticker'
+                      ? 'Search stickers e.g. Chiikawa, Tangkwa...'
+                      : 'Search by creator name...'
+                  }
+                  className="w-full px-4 py-2 rounded-xl border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm transition-colors"
+                />
+              </div>
+              <button
+                onClick={() => doSearch(query, searchMode)}
+                className="px-3 py-2 bg-[#06c755] text-white rounded-xl text-xs font-medium flex-shrink-0 hover:bg-[#05b04a] transition-colors"
+              >
+                {searching ? '...' : 'Search'}
+              </button>
             </div>
 
             {/* Sticker dropdown */}
             {showDropdown && searchMode === 'sticker' && results.length > 0 && (
-              <div className="absolute top-full left-0 right-20 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden z-20">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden z-20">
                 {results.map((p) => (
                   <button
                     key={p.id}
@@ -264,7 +265,7 @@ export default function HomePage() {
 
             {/* Creator dropdown */}
             {showDropdown && searchMode === 'creator' && creatorResults.length > 0 && (
-              <div className="absolute top-full left-0 right-20 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden z-20">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden z-20">
                 {creatorResults.map((c) => (
                   <button
                     key={c.author}
@@ -286,7 +287,7 @@ export default function HomePage() {
             {showDropdown && !searching &&
               ((searchMode === 'sticker' && results.length === 0) ||
                 (searchMode === 'creator' && creatorResults.length === 0)) && (
-              <div className="absolute top-full left-0 right-20 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg p-4 text-center text-sm text-gray-400 z-20">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg p-4 text-center text-sm text-gray-400 z-20">
                 No results for &ldquo;{query}&rdquo;
               </div>
             )}
@@ -318,6 +319,12 @@ export default function HomePage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-10">
+
+        {/* Tagline */}
+        <div className="text-center pt-2 pb-1">
+          <p className="text-sm text-gray-500">See which LINE stickers are trending — rankings updated daily across 18 countries.</p>
+          <p className="text-sm text-gray-400 mt-1">Click any sticker to explore its full rank history. Save your picks to ♥ Favorites to track their progress over time.</p>
+        </div>
 
         {/* Favorites Panel */}
         {showFavorites && (
