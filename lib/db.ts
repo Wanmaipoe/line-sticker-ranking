@@ -180,6 +180,7 @@ export interface LeaderboardCreator {
   distinct_stickers: number;
   countries: number;
   best_rank: number;
+  by_country: Record<string, number>; // slots held per country, for the breakdown tooltip
   sample_id: string;       // best-ranked sticker, for a thumbnail
   sample_name: string;
   sample_image: string | null;
@@ -232,6 +233,7 @@ export async function getCreatorLeaderboard(
         chart_entries: 0,
         distinct_stickers: 0,
         countries: 0,
+        by_country: {},
         best_rank: rank,
         sample_id: pid,
         sample_name: row.name as string,
@@ -241,9 +243,11 @@ export async function getCreatorLeaderboard(
       };
       byAuthor.set(author, c);
     }
+    const cc = row.country as string;
     c.chart_entries += 1;
+    c.by_country[cc] = (c.by_country[cc] ?? 0) + 1;
     c._stickers.add(pid);
-    c._countries.add(row.country as string);
+    c._countries.add(cc);
     if (rank < c.best_rank) {
       c.best_rank = rank;
       c.sample_id = pid;
