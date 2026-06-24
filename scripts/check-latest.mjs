@@ -40,7 +40,9 @@ const top = await client.execute({
 });
 console.log('\nTop 10:');
 for (const row of top.rows) {
-  const price = row.price != null ? `$${(row.price / 100).toFixed(2)}` : '—';
+  const price = row.price == null ? '—'
+    : row.price_currency === 'USD' ? `$${(row.price / 100).toFixed(2)}`
+    : `${row.price} ${row.price_currency ?? ''}`.trim();
   console.log(`  #${row.rank}  ${row.name}  · ${row.author ?? '?'} · ${price} · ${row.sticker_type ?? '?'}`);
 }
 
