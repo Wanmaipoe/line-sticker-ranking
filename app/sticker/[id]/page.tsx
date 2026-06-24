@@ -28,6 +28,7 @@ export default async function StickerPage({ params }: Props) {
     price: row.price as number | null,
     price_currency: row.price_currency as string | null,
     description: row.description as string | null,
+    sticker_type: row.sticker_type as string | null,
   };
 
   const rankings = await getLatestRankingsForProduct(client, id);
@@ -44,6 +45,7 @@ export default async function StickerPage({ params }: Props) {
       price={product.price}
       priceCurrency={product.price_currency}
       description={product.description}
+      stickerType={product.sticker_type}
       initialRankings={rankings}
     />
   );

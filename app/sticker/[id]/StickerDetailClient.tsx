@@ -5,8 +5,16 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import GlobalRankTable from '@/components/GlobalRankTable';
 import RankGraph from '@/components/RankGraph';
+import TypeBadge from '@/components/TypeBadge';
 import { COUNTRY_MAP } from '@/lib/countries';
 import { useFavorites } from '@/hooks/useFavorites';
+
+function formatPrice(price: number | null, currency: string | null): string | null {
+  if (price == null) return null;
+  // New source stores USD in cents; legacy rows may carry other integer currencies.
+  if (currency === 'USD') return `$${(price / 100).toFixed(2)}`;
+  return `${price.toLocaleString()} ${currency ?? ''}`.trim();
+}
 
 interface RankRow {
   country: string;
@@ -31,6 +39,7 @@ interface Props {
   price: number | null;
   priceCurrency: string | null;
   description: string | null;
+  stickerType: string | null;
   initialRankings: RankRow[];
 }
 
@@ -42,6 +51,7 @@ export default function StickerDetailClient({
   price,
   priceCurrency,
   description,
+  stickerType,
   initialRankings,
 }: Props) {
   const router = useRouter();
@@ -83,6 +93,13 @@ export default function StickerDetailClient({
   const countryInfo = COUNTRY_MAP[selectedCountry];
   const favorited = favLoaded && isFavorite(id);
 
+  // Global footprint, computed from the per-country current ranks
+  const countriesRanked = rankings.length;
+  const bestRank = rankings.length ? Math.min(...rankings.map((r) => r.current_rank)) : null;
+  const top10 = rankings.filter((r) => r.current_rank <= 10).length;
+  const bestCountry = bestRank != null ? rankings.find((r) => r.current_rank === bestRank)?.country : null;
+  const priceLabel = formatPrice(price, priceCurrency);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -105,7 +122,10 @@ export default function StickerDetailClient({
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
-                <h1 className="text-lg font-bold text-gray-800 leading-snug">{name}</h1>
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <h1 className="text-lg font-bold text-gray-800 leading-snug">{name}</h1>
+                  <TypeBadge type={stickerType} />
+                </div>
                 <button
                   onClick={() => toggle(id)}
                   disabled={!favLoaded}
@@ -135,10 +155,8 @@ export default function StickerDetailClient({
                 >
                   Open in LINE Store ↗
                 </a>
-                {price != null && (
-                  <span className="text-xs text-gray-400">
-                    {price.toLocaleString()} {priceCurrency ?? ''}
-                  </span>
+                {priceLabel && (
+                  <span className="text-xs text-gray-500 font-medium">{priceLabel}</span>
                 )}
               </div>
               {description && (
@@ -163,6 +181,28 @@ export default function StickerDetailClient({
               Click a row to view graph
             </span>
           </div>
+
+          {/* Global footprint */}
+          {countriesRanked > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-lg font-bold text-gray-700 leading-none">{countriesRanked}</p>
+                <p className="text-[11px] text-gray-400 mt-1">countries ranked</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-lg font-bold text-green-600 leading-none">
+                  #{bestRank}
+                  {bestCountry && <span className="text-xs"> {COUNTRY_MAP[bestCountry]?.flag}</span>}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-1">best rank</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-lg font-bold text-gray-700 leading-none">{top10}</p>
+                <p className="text-[11px] text-gray-400 mt-1">top 10 markets</p>
+              </div>
+            </div>
+          )}
+
           <GlobalRankTable
             rows={rankings}
             selectedCountry={selectedCountry}
