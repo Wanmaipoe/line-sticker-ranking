@@ -12,7 +12,7 @@ export async function GET() {
   const client = getDb();
 
   const latestResult = await client.execute(
-    `SELECT snapshot_date, MAX(created_at) as updated_at FROM rankings ORDER BY snapshot_date DESC LIMIT 1`
+    `SELECT snapshot_date, snapshot_hour, MAX(created_at) as updated_at FROM rankings ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1`
   );
 
   const latestRow = latestResult.rows[0];
@@ -21,6 +21,7 @@ export async function GET() {
   }
 
   const date = latestRow.snapshot_date as string;
+  const hour = latestRow.snapshot_hour as number;
   const updatedAt = latestRow.updated_at as string;
 
   const countryData = (
@@ -31,10 +32,10 @@ export async function GET() {
           sql: `SELECT r.rank, p.id, p.name, p.image_url
                 FROM rankings r
                 JOIN products p ON p.id = r.product_id
-                WHERE r.country = ? AND r.snapshot_date = ?
+                WHERE r.country = ? AND r.snapshot_date = ? AND r.snapshot_hour = ?
                 ORDER BY r.rank ASC
                 LIMIT 5`,
-          args: [code, date],
+          args: [code, date, hour],
         });
         const top5 = top5Result.rows.map((row) => ({
           rank: row.rank as number,
