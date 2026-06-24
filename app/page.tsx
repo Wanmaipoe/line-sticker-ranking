@@ -320,8 +320,14 @@ export default function HomePage() {
           >
             ♥ Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}
           </button>
+          <a
+            href="/creators"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
+          >
+            🏅 Top Creators
+          </a>
           {showFavorites && (
-            <span className="text-xs text-gray-400">— click ♥ on any sticker detail page to save</span>
+            <span className="text-xs text-gray-400 hidden sm:inline">— click ♥ on any sticker detail page to save</span>
           )}
         </div>
       </header>

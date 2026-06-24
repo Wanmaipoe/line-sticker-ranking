@@ -168,6 +168,94 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
   }));
 }
 
+export interface LeaderboardCreator {
+  author: string;
+  chart_entries: number;   // total (sticker × country) appearances in the top N
+  distinct_stickers: number;
+  countries: number;
+  best_rank: number;
+  sample_id: string;       // best-ranked sticker, for a thumbnail
+  sample_name: string;
+  sample_image: string | null;
+}
+
+// Which creators dominate the charts right now, aggregated across all 18 countries'
+// latest snapshot. "chart_entries" = how many sticker×country slots they hold in the
+// top N — the headline metric. This is something the daily-only competitor can't frame.
+export async function getCreatorLeaderboard(
+  client: Client,
+  topN = 100,
+  limit = 60
+): Promise<LeaderboardCreator[]> {
+  const result = await client.execute({
+    sql: `WITH global_latest AS (
+            SELECT MAX(snapshot_date) AS gd FROM rankings
+          ),
+          latest_date AS (
+            -- only countries still actively scraped today; excludes stale country codes
+            -- left over from the old data source whose latest snapshot is an older date
+            SELECT country, MAX(snapshot_date) AS d
+            FROM rankings GROUP BY country
+            HAVING MAX(snapshot_date) = (SELECT gd FROM global_latest)
+          ),
+          snap AS (
+            SELECT r.country, r.snapshot_date AS d, MAX(r.snapshot_hour) AS h
+            FROM rankings r
+            JOIN latest_date l ON r.country = l.country AND r.snapshot_date = l.d
+            GROUP BY r.country
+          )
+          SELECT cur.country, cur.rank, p.id, p.name, p.image_url, p.author
+          FROM rankings cur
+          JOIN snap s ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
+          JOIN products p ON p.id = cur.product_id
+          WHERE cur.rank <= ? AND p.author IS NOT NULL AND TRIM(p.author) != ''`,
+    args: [topN],
+  });
+
+  const byAuthor = new Map<string, LeaderboardCreator & { _stickers: Set<string>; _countries: Set<string> }>();
+  for (const row of result.rows) {
+    const author = row.author as string;
+    const rank = row.rank as number;
+    const pid = row.id as string;
+    let c = byAuthor.get(author);
+    if (!c) {
+      c = {
+        author,
+        chart_entries: 0,
+        distinct_stickers: 0,
+        countries: 0,
+        best_rank: rank,
+        sample_id: pid,
+        sample_name: row.name as string,
+        sample_image: (row.image_url as string | null) ?? null,
+        _stickers: new Set(),
+        _countries: new Set(),
+      };
+      byAuthor.set(author, c);
+    }
+    c.chart_entries += 1;
+    c._stickers.add(pid);
+    c._countries.add(row.country as string);
+    if (rank < c.best_rank) {
+      c.best_rank = rank;
+      c.sample_id = pid;
+      c.sample_name = row.name as string;
+      c.sample_image = (row.image_url as string | null) ?? null;
+    }
+  }
+
+  return [...byAuthor.values()]
+    .map((c) => {
+      c.distinct_stickers = c._stickers.size;
+      c.countries = c._countries.size;
+      const { _stickers, _countries, ...rest } = c;
+      void _stickers; void _countries;
+      return rest;
+    })
+    .sort((a, b) => b.chart_entries - a.chart_entries || a.best_rank - b.best_rank)
+    .slice(0, limit);
+}
+
 export async function getRankingHistory(client: Client, productId: string, country: string, days = 30) {
   const result = await client.execute({
     sql: `SELECT snapshot_date, snapshot_hour, rank
