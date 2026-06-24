@@ -8,10 +8,11 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export async function scrapeCountryDate(country: string, date: string) {
+export async function scrapeCountryDate(country: string, date: string, snapshotHour?: number) {
   const client = getDb();
   const items = await getAllRankings(country, date);
   const now = new Date().toISOString();
+  const hour = snapshotHour ?? new Date().getUTCHours();
 
   const statements = items.flatMap((item) => [
     {
@@ -33,8 +34,8 @@ export async function scrapeCountryDate(country: string, date: string) {
     },
     {
       sql: `INSERT OR REPLACE INTO rankings (product_id, country, rank, snapshot_date, snapshot_hour, created_at)
-            VALUES (?, ?, ?, ?, 12, ?)`,
-      args: [item.sticker_id, country, item.rank, date, now] as (string | number | null)[],
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [item.sticker_id, country, item.rank, date, hour, now] as (string | number | null)[],
     },
   ]);
 
