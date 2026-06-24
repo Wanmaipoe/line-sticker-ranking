@@ -35,7 +35,9 @@ try {
 }
 
 const BASE = 'https://store.line.me';
-const ALL_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us', 'kr', 'my', 'sg', 'hk', 'ph', 'vn', 'in', 'au', 'br', 'mx', 'sa', 'ae', 'eg'];
+// LINE's meaningful markets only (by MAU). Other countries have too few users to
+// produce a trustworthy ranking, so we don't collect them. Order = priority.
+const ALL_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'];
 // ONLY=th,jp limits the run (testing / re-scrape a single country). Default: all.
 const COUNTRIES = process.env.ONLY
   ? process.env.ONLY.split(',').map((c) => c.trim().toLowerCase()).filter(Boolean)

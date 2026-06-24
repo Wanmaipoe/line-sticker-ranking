@@ -25,3 +25,17 @@ export type CountryCode = typeof COUNTRIES[number]['code'];
 export const COUNTRY_MAP = Object.fromEntries(
   COUNTRIES.map((c) => [c.code, c])
 ) as Record<string, typeof COUNTRIES[number]>;
+
+// The only markets we track and display, in priority order (by LINE MAU:
+// Japan ~96M, Thailand ~54M, Taiwan ~23M, Indonesia ~20M, US ~3M). Everything
+// country-related — scraping, tables, leaderboard, footprint — uses this list and
+// this order. Other countries have too few LINE users to rank meaningfully.
+export const FEATURED_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'] as const;
+
+export const COUNTRY_ORDER: Record<string, number> = Object.fromEntries(
+  FEATURED_COUNTRIES.map((c, i) => [c, i])
+);
+
+export function isFeaturedCountry(code: string): boolean {
+  return (FEATURED_COUNTRIES as readonly string[]).includes(code);
+}

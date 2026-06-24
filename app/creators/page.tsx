@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Top Creators — LineStickerRanking',
-  description: 'Which LINE sticker creators dominate the charts across 18 countries right now.',
+  description: "Which LINE sticker creators dominate the charts across LINE's biggest markets right now.",
 };
 
 function medal(i: number) {
@@ -27,7 +27,7 @@ export default async function CreatorsPage() {
         <div className="mt-5 mb-2">
           <h1 className="text-xl font-bold text-gray-800">🏅 Top Creators</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Ranked by how many chart slots each creator holds across all 18 countries&apos; latest top 100.
+            Ranked by how many chart slots each creator holds across Japan, Thailand, Taiwan, Indonesia &amp; the US (latest top 100).
           </p>
         </div>
 

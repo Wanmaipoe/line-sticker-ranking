@@ -1,4 +1,5 @@
 import { createClient, type Client } from '@libsql/client';
+import { FEATURED_COUNTRIES, COUNTRY_ORDER } from './countries';
 
 let _client: Client | null = null;
 
@@ -160,14 +161,17 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
     ORDER BY r.rank ASC`,
     args: [productId, productId, productId, productId, productId],
   });
-  return result.rows.map((row) => ({
-    country: row.country as string,
-    current_rank: row.current_rank as number,
-    snapshot_date: row.snapshot_date as string,
-    snapshot_hour: row.snapshot_hour as number,
-    rank_24h_ago: row.rank_24h_ago as number | null,
-    best_30d: row.best_30d as number | null,
-  }));
+  return result.rows
+    .map((row) => ({
+      country: row.country as string,
+      current_rank: row.current_rank as number,
+      snapshot_date: row.snapshot_date as string,
+      snapshot_hour: row.snapshot_hour as number,
+      rank_24h_ago: row.rank_24h_ago as number | null,
+      best_30d: row.best_30d as number | null,
+    }))
+    .filter((r) => r.country in COUNTRY_ORDER) // featured markets only
+    .sort((a, b) => COUNTRY_ORDER[a.country] - COUNTRY_ORDER[b.country]); // JP > TH > TW > ID > US
 }
 
 export interface LeaderboardCreator {
@@ -181,7 +185,7 @@ export interface LeaderboardCreator {
   sample_image: string | null;
 }
 
-// Which creators dominate the charts right now, aggregated across all 18 countries'
+// Which creators dominate the charts right now, aggregated across all 5 tracked markets'
 // latest snapshot. "chart_entries" = how many sticker×country slots they hold in the
 // top N — the headline metric. This is something the daily-only competitor can't frame.
 export async function getCreatorLeaderboard(
@@ -210,8 +214,10 @@ export async function getCreatorLeaderboard(
           FROM rankings cur
           JOIN snap s ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
           JOIN products p ON p.id = cur.product_id
-          WHERE cur.rank <= ? AND p.author IS NOT NULL AND TRIM(p.author) != ''`,
-    args: [topN],
+          WHERE cur.rank <= ?
+            AND cur.country IN (${FEATURED_COUNTRIES.map(() => '?').join(',')})
+            AND p.author IS NOT NULL AND TRIM(p.author) != ''`,
+    args: [topN, ...FEATURED_COUNTRIES],
   });
 
   const byAuthor = new Map<string, LeaderboardCreator & { _stickers: Set<string>; _countries: Set<string> }>();

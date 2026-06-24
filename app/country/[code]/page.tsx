@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/db';
-import { COUNTRY_MAP } from '@/lib/countries';
+import { COUNTRY_MAP, isFeaturedCountry } from '@/lib/countries';
 import CountryClient from './CountryClient';
+import { notFound } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,7 @@ interface Props {
 export default async function CountryPage({ params }: Props) {
   const { code } = await params;
   const cc = code.toLowerCase();
+  if (!isFeaturedCountry(cc)) notFound();
   const client = getDb();
 
   const dateRes = await client.execute({
