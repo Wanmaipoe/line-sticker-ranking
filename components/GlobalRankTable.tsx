@@ -1,6 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { COUNTRY_MAP } from '@/lib/countries';
+
+const COLUMN_HINTS: Record<string, string> = {
+  current: 'Rank in this country as of the latest update',
+  delta24h: 'Change vs. yesterday — ▲ means rank improved',
+  best30d: 'Best (lowest) rank reached in the past 30 days',
+  freshness: 'How long ago this data was last updated',
+};
 
 interface RankRow {
   country: string;
@@ -43,6 +51,25 @@ function rankColor(rank: number) {
   return 'text-gray-600';
 }
 
+function TooltipTh({ colKey, label, className }: { colKey: string; label: string; className?: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <th
+      className={`relative cursor-help select-none ${className ?? ''}`}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onClick={() => setShow((v) => !v)}
+    >
+      {label}
+      {show && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-gray-800 text-white text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap z-50 shadow-lg font-normal normal-case tracking-normal">
+          {COLUMN_HINTS[colKey]}
+        </div>
+      )}
+    </th>
+  );
+}
+
 export default function GlobalRankTable({ rows, selectedCountry, onSelectCountry }: Props) {
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
@@ -50,10 +77,10 @@ export default function GlobalRankTable({ rows, selectedCountry, onSelectCountry
         <thead>
           <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
             <th className="text-left px-4 py-2.5">Country</th>
-            <th className="text-center px-3 py-2.5">Current</th>
-            <th className="text-center px-3 py-2.5">Δ24h</th>
-            <th className="text-center px-3 py-2.5">Best 30d</th>
-            <th className="text-center px-3 py-2.5">Freshness</th>
+            <TooltipTh colKey="current" label="Current" className="text-center px-3 py-2.5" />
+            <TooltipTh colKey="delta24h" label="Δ24h" className="text-center px-3 py-2.5" />
+            <TooltipTh colKey="best30d" label="Best 30d" className="text-center px-3 py-2.5" />
+            <TooltipTh colKey="freshness" label="Freshness" className="text-center px-3 py-2.5" />
             <th className="px-3 py-2.5"></th>
           </tr>
         </thead>
