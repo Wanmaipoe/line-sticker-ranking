@@ -174,6 +174,13 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
     .sort((a, b) => COUNTRY_ORDER[a.country] - COUNTRY_ORDER[b.country]); // JP > TH > TW > ID > US
 }
 
+export interface LeaderboardSlot {
+  id: string;
+  name: string;
+  country: string;
+  rank: number;
+}
+
 export interface LeaderboardCreator {
   author: string;
   chart_entries: number;   // total (sticker × country) appearances in the top N
@@ -181,6 +188,7 @@ export interface LeaderboardCreator {
   countries: number;
   best_rank: number;
   by_country: Record<string, number>; // slots held per country, for the breakdown tooltip
+  slots: LeaderboardSlot[];           // every (pack × country) appearance, for the packs tooltip
   sample_id: string;       // best-ranked sticker, for a thumbnail
   sample_name: string;
   sample_image: string | null;
@@ -234,6 +242,7 @@ export async function getCreatorLeaderboard(
         distinct_stickers: 0,
         countries: 0,
         by_country: {},
+        slots: [],
         best_rank: rank,
         sample_id: pid,
         sample_name: row.name as string,
@@ -246,6 +255,7 @@ export async function getCreatorLeaderboard(
     const cc = row.country as string;
     c.chart_entries += 1;
     c.by_country[cc] = (c.by_country[cc] ?? 0) + 1;
+    c.slots.push({ id: pid, name: row.name as string, country: cc, rank });
     c._stickers.add(pid);
     c._countries.add(cc);
     if (rank < c.best_rank) {
@@ -260,6 +270,7 @@ export async function getCreatorLeaderboard(
     .map((c) => {
       c.distinct_stickers = c._stickers.size;
       c.countries = c._countries.size;
+      c.slots.sort((a, b) => a.rank - b.rank); // best rank first
       const { _stickers, _countries, ...rest } = c;
       void _stickers; void _countries;
       return rest;

@@ -4,6 +4,13 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { COUNTRY_MAP, COUNTRY_ORDER } from '@/lib/countries';
 
+interface Slot {
+  id: string;
+  name: string;
+  country: string;
+  rank: number;
+}
+
 interface Creator {
   author: string;
   chart_entries: number;
@@ -11,6 +18,7 @@ interface Creator {
   countries: number;
   best_rank: number;
   by_country: Record<string, number>;
+  slots: Slot[];
   sample_id: string;
   sample_name: string;
   sample_image: string | null;
@@ -77,6 +85,76 @@ function SlotsCell({ creator }: { creator: Creator }) {
   );
 }
 
+function rankClass(rank: number) {
+  if (rank === 1) return 'text-yellow-500 font-bold';
+  if (rank <= 3) return 'text-orange-400 font-semibold';
+  if (rank <= 10) return 'text-green-600 font-semibold';
+  return 'text-gray-600';
+}
+
+function PacksCell({ creator }: { creator: Creator }) {
+  const [show, setShow] = useState(false);
+  return (
+    <td
+      className="relative px-3 py-3 text-center hidden sm:table-cell"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onClick={() => setShow((v) => !v)}
+    >
+      <span className="text-gray-600 cursor-help border-b border-dotted border-gray-300">{creator.distinct_stickers}</span>
+      {show && (
+        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg z-50 shadow-lg w-72 max-h-64 overflow-y-auto text-left">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-gray-50 text-gray-400">
+              <tr>
+                <th className="text-left px-2.5 py-1.5 font-medium">Pack</th>
+                <th className="px-1 py-1.5 font-medium">Country</th>
+                <th className="text-right px-2.5 py-1.5 font-medium">Rank</th>
+              </tr>
+            </thead>
+            <tbody>
+              {creator.slots.map((s, i) => (
+                <tr key={`${s.id}-${s.country}-${i}`} className="border-t border-gray-50">
+                  <td className="px-2.5 py-1 text-gray-600 truncate max-w-[130px]">{s.name}</td>
+                  <td className="px-1 py-1 text-center">{COUNTRY_MAP[s.country]?.flag ?? s.country.toUpperCase()}</td>
+                  <td className={`px-2.5 py-1 text-right ${rankClass(s.rank)}`}>#{s.rank}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </td>
+  );
+}
+
+function CountriesCell({ creator }: { creator: Creator }) {
+  const [show, setShow] = useState(false);
+  const list = Object.keys(creator.by_country).sort(
+    (a, b) => (COUNTRY_ORDER[a] ?? 99) - (COUNTRY_ORDER[b] ?? 99)
+  );
+  return (
+    <td
+      className="relative px-3 py-3 text-center hidden sm:table-cell"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onClick={() => setShow((v) => !v)}
+    >
+      <span className="text-gray-600 cursor-help border-b border-dotted border-gray-300">{creator.countries}</span>
+      {show && (
+        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg z-50 shadow-lg py-1.5 w-44 text-left">
+          {list.map((cc) => (
+            <div key={cc} className="flex items-center justify-between px-3 py-0.5 text-xs text-gray-600">
+              <span>{COUNTRY_MAP[cc]?.flag} {COUNTRY_MAP[cc]?.name ?? cc.toUpperCase()}</span>
+              <span className="text-gray-400">{creator.by_country[cc]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </td>
+  );
+}
+
 function medal(i: number) {
   if (i === 0) return '🥇';
   if (i === 1) return '🥈';
@@ -130,8 +208,8 @@ export default function CreatorsLeaderboard({ creators }: { creators: Creator[] 
                 </a>
               </td>
               <SlotsCell creator={c} />
-              <td className="px-3 py-3 text-center text-gray-500 hidden sm:table-cell">{c.distinct_stickers}</td>
-              <td className="px-3 py-3 text-center text-gray-500 hidden sm:table-cell">{c.countries}</td>
+              <PacksCell creator={c} />
+              <CountriesCell creator={c} />
               <td className="px-3 py-3 text-center">
                 <span
                   className={
