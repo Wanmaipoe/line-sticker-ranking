@@ -179,14 +179,21 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Image src="/mascot.png" alt="Bowl Cut Piggo" width={36} height={36} className="object-contain" />
-            <span className="font-bold text-gray-800 text-lg">LineStickerRanking</span>
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+          <div className="flex items-center justify-between sm:justify-start">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Image src="/mascot.png" alt="Bowl Cut Piggo" width={36} height={36} className="object-contain" />
+              <span className="font-bold text-gray-800 text-lg">LineStickerRanking</span>
+            </div>
+            {dashboard?.updatedAt && (
+              <span className="text-xs text-gray-400 sm:hidden">
+                {toThaiTime(dashboard.updatedAt)} (BKK)
+              </span>
+            )}
           </div>
 
           {/* Search + mode toggle */}
-          <div className="relative flex-1 max-w-lg">
+          <div className="relative flex-1 sm:max-w-lg">
             <div className="flex items-center gap-2">
               <div className="flex rounded-xl border border-gray-200 overflow-hidden text-xs flex-shrink-0">
                 <button
@@ -298,6 +305,7 @@ export default function HomePage() {
               Updated {toThaiTime(dashboard.updatedAt)} (BKK)
             </span>
           )}
+
         </div>
 
         {/* Favorites toggle */}

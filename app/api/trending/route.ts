@@ -5,7 +5,7 @@ import { COUNTRY_MAP } from '@/lib/countries';
 const FEATURED_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'] as const;
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export async function GET() {
   const client = getDb();
