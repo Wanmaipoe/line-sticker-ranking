@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { COUNTRY_MAP } from '@/lib/countries';
 
 const FEATURED = ['jp', 'th', 'tw', 'id', 'us'] as const;
+const MOBILE_HIDDEN = new Set(['id', 'us']);
 
 export interface ProductWithRankings {
   id: string;
@@ -56,7 +57,7 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
             {FEATURED.map((cc) => {
               const info = COUNTRY_MAP[cc];
               return (
-                <th key={cc} className="text-center px-3 py-2.5 w-16">
+                <th key={cc} className={`text-center px-3 py-2.5 w-16 ${MOBILE_HIDDEN.has(cc) ? 'hidden sm:table-cell' : ''}`}>
                   {info?.flag} {cc.toUpperCase()}
                 </th>
               );
@@ -111,7 +112,7 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
                 </div>
               </td>
               {FEATURED.map((cc) => (
-                <td key={cc} className="text-center px-3 py-3">
+                <td key={cc} className={`text-center px-3 py-3 ${MOBILE_HIDDEN.has(cc) ? 'hidden sm:table-cell' : ''}`}>
                   <RankBadge rank={p.rankings[cc] ?? null} />
                 </td>
               ))}
