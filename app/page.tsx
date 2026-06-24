@@ -425,7 +425,7 @@ export default function HomePage() {
                         </span>
                         <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
                           <Image
-                            src={item.image_url}
+                            src={item.image_url ?? `https://stickershop.line-scdn.net/stickershop/v1/product/${item.id}/LINEStorePC/main.png`}
                             alt={item.name}
                             width={32}
                             height={32}
@@ -506,7 +506,7 @@ export default function HomePage() {
                       </span>
                       <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
                         <Image
-                          src={item.image_url}
+                          src={item.image_url ?? `https://stickershop.line-scdn.net/stickershop/v1/product/${item.id}/LINEStorePC/main.png`}
                           alt={item.name}
                           width={32}
                           height={32}

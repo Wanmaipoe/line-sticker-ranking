@@ -80,7 +80,11 @@ function parsePage(html) {
     seen.add(id);
 
     const $img = $a.find('img').first();
-    const image = $img.attr('data-src') || $img.attr('src') || null;
+    let image = $img.attr('data-src') || $img.attr('src') || null;
+    // Premium/subscription stickers list a generic "P" placeholder instead of a real
+    // thumbnail. Drop anything that isn't a product image; the UI then builds the
+    // canonical thumbnail URL from the product id (which works for premium too).
+    if (image && !image.includes('/stickershop/')) image = null;
     const imgAlt = ($img.attr('alt') || '').trim();
 
     // Title + author usually sit in sibling text nodes inside the card.
