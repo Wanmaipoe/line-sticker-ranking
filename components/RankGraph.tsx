@@ -35,10 +35,12 @@ function formatHour(d: DataPoint) {
   const date = new Date(
     `${d.snapshot_date}T${String(d.snapshot_hour).padStart(2, '0')}:00:00Z`
   );
-  return date.toLocaleDateString('en-GB', {
-    month: 'short',
+  // viewer-local time (BKK for our audience); snapshots are on the hour
+  return date.toLocaleString('en-GB', {
     day: 'numeric',
+    month: 'short',
     hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
   });
 }
@@ -69,17 +71,26 @@ export default function RankGraph({ data, countryName, countryFlag }: Props) {
   const hasHourlyData = uniqueSlots > uniqueDates;
   // Always show toggle so user can switch; hourly = daily when only 1 point/day
 
-  const display = freq === 'daily' ? groupByDay(data) : data;
+  // Hourly view = zoom into the recent window so the x-axis reads as hours (rightmost =
+  // latest snapshot ≈ now), instead of stretching 30 days of mostly-daily points.
+  const HOURLY_WINDOW_H = 48;
+  const hourly = data.filter(
+    (d) =>
+      Date.parse(`${d.snapshot_date}T${String(d.snapshot_hour).padStart(2, '0')}:00:00Z`) >=
+      Date.now() - HOURLY_WINDOW_H * 3_600_000
+  );
+  const display = freq === 'daily' ? groupByDay(data) : hourly;
   const chartData = display.map((d) => ({
     label: freq === 'daily' ? formatDate(d) : formatHour(d),
     rank: d.rank,
     raw: d,
   }));
 
-  const minRank = Math.min(...chartData.map((d) => d.rank));
-  const maxRank = Math.max(...chartData.map((d) => d.rank));
-  const first = chartData[0].rank;
-  const last = chartData[chartData.length - 1].rank;
+  const ranks = chartData.map((d) => d.rank);
+  const minRank = ranks.length ? Math.min(...ranks) : 1;
+  const maxRank = ranks.length ? Math.max(...ranks) : 50;
+  const first = ranks[0] ?? 0;
+  const last = ranks[ranks.length - 1] ?? 0;
 
   return (
     <div>
@@ -87,7 +98,9 @@ export default function RankGraph({ data, countryName, countryFlag }: Props) {
         <span className="text-2xl">{countryFlag}</span>
         <div className="flex-1">
           <p className="font-semibold text-sm">{countryName}</p>
-          <p className="text-xs text-gray-400">Last 30 days · Click a point for details</p>
+          <p className="text-xs text-gray-400">
+            {freq === 'daily' ? 'Last 30 days' : `Last ${HOURLY_WINDOW_H}h · hourly`} · Click a point for details
+          </p>
         </div>
         {data.length > 1 && (
           <span
@@ -132,6 +145,11 @@ export default function RankGraph({ data, countryName, countryFlag }: Props) {
         </div>
       </div>
 
+      {chartData.length === 0 ? (
+        <div className="flex items-center justify-center h-44 text-sm text-gray-400">
+          No hourly snapshots in the last {HOURLY_WINDOW_H}h yet — it fills in as the scraper runs.
+        </div>
+      ) : (
       <ResponsiveContainer width="100%" height={180}>
         <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -175,6 +193,7 @@ export default function RankGraph({ data, countryName, countryFlag }: Props) {
           />
         </LineChart>
       </ResponsiveContainer>
+      )}
     </div>
   );
 }
