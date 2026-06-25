@@ -55,10 +55,46 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// Retry transient failures (network blips, and the WiFi-not-up-yet window right after
+// the laptop wakes to run the scheduled task — the cause of "ran but wrote nothing").
+async function fetchWithRetry(url, opts, attempts = 4, baseDelay = 2500) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, opts);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await sleep(baseDelay * (i + 1)); // 2.5s, 5s, 7.5s
+    }
+  }
+  throw lastErr;
+}
+
+// Don't start scraping until the network is actually reachable. After a wake-to-run,
+// the task can fire before WiFi reconnects; without this the whole run fails silently.
+async function waitForNetwork(maxWaitMs = 90000) {
+  const probe = `${BASE}/stickershop/showcase/top_creators/en?country=JP&page=1`;
+  const deadline = Date.now() + maxWaitMs;
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(probe, { headers: HEADERS });
+      if (res.ok) return true;
+    } catch {
+      // not reachable yet
+    }
+    attempt += 1;
+    console.log(`[scraper] network not ready, waiting 5s... (attempt ${attempt})`);
+    await sleep(5000);
+  }
+  return false;
+}
+
 async function fetchPage(country, page) {
   const url = `${BASE}/stickershop/showcase/top_creators/en?country=${country.toUpperCase()}&page=${page}`;
-  const res = await fetch(url, { headers: HEADERS });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  const res = await fetchWithRetry(url, { headers: HEADERS });
   return res.text();
 }
 
@@ -171,6 +207,12 @@ async function runFull() {
   }
   const client = createClient({ url, authToken });
 
+  // Wait for connectivity before doing anything (handles wake-to-run before WiFi is up).
+  if (!(await waitForNetwork())) {
+    console.error('[scraper] network unavailable after 90s — aborting, the next run will retry');
+    process.exit(1);
+  }
+
   const now = new Date();
   const snapshotDate = now.toISOString().slice(0, 10); // UTC date, matches existing convention
   const hour = now.getUTCHours();
@@ -224,6 +266,14 @@ async function runFull() {
   }
 
   console.log('\n[scraper] Done:', JSON.stringify(summary, null, 2));
+
+  // If every country came back empty, the run effectively failed — exit non-zero so it
+  // shows up as a failed task (not a silent "success") and isn't mistaken for fresh data.
+  const totalItems = Object.values(summary).reduce((n, s) => n + (s.items || 0), 0);
+  if (totalItems === 0) {
+    console.error('[scraper] wrote 0 items across all countries — exiting non-zero');
+    process.exit(1);
+  }
 }
 
 (DRY ? runDry() : runFull()).catch((err) => {
