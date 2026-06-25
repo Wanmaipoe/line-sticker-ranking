@@ -1,5 +1,5 @@
 import { createClient, type Client } from '@libsql/client';
-import { FEATURED_COUNTRIES, COUNTRY_ORDER } from './countries';
+import { COUNTRY_ORDER } from './countries';
 
 let _client: Client | null = null;
 
@@ -194,21 +194,91 @@ export interface LeaderboardCreator {
   sample_image: string | null;
 }
 
-// Which creators dominate the charts right now, aggregated across all 5 tracked markets'
-// latest snapshot. "chart_entries" = how many sticker×country slots they hold in the
-// top N — the headline metric. This is something the daily-only competitor can't frame.
-export async function getCreatorLeaderboard(
+export interface CreatorLeaderboards {
+  all: LeaderboardCreator[];
+  jp: LeaderboardCreator[];
+  th: LeaderboardCreator[];
+  tw: LeaderboardCreator[];
+}
+
+// The Top Creators page scopes to LINE's three biggest markets only — beyond these the
+// rankings get noisy and distort the "who dominates" picture.
+const LEADERBOARD_COUNTRIES = ['jp', 'th', 'tw'] as const;
+
+interface SlotRow {
+  country: string;
+  rank: number;
+  id: string;
+  name: string;
+  image_url: string | null;
+  author: string;
+}
+
+// Aggregate already-fetched slot rows into a ranked creator list. "chart_entries" =
+// how many sticker×country slots a creator holds in the top N (the headline metric).
+function aggregateCreators(rows: SlotRow[], limit: number): LeaderboardCreator[] {
+  const byAuthor = new Map<string, LeaderboardCreator & { _stickers: Set<string>; _countries: Set<string> }>();
+  for (const row of rows) {
+    const { author, rank, id: pid, country: cc } = row;
+    let c = byAuthor.get(author);
+    if (!c) {
+      c = {
+        author,
+        chart_entries: 0,
+        distinct_stickers: 0,
+        countries: 0,
+        by_country: {},
+        slots: [],
+        best_rank: rank,
+        sample_id: pid,
+        sample_name: row.name,
+        sample_image: row.image_url ?? null,
+        _stickers: new Set(),
+        _countries: new Set(),
+      };
+      byAuthor.set(author, c);
+    }
+    c.chart_entries += 1;
+    c.by_country[cc] = (c.by_country[cc] ?? 0) + 1;
+    c.slots.push({ id: pid, name: row.name, country: cc, rank });
+    c._stickers.add(pid);
+    c._countries.add(cc);
+    if (rank < c.best_rank) {
+      c.best_rank = rank;
+      c.sample_id = pid;
+      c.sample_name = row.name;
+      c.sample_image = row.image_url ?? null;
+    }
+  }
+
+  return [...byAuthor.values()]
+    .map((c) => {
+      c.distinct_stickers = c._stickers.size;
+      c.countries = c._countries.size;
+      // group by country priority (JP > TH > TW), then best rank within each
+      c.slots.sort(
+        (a, b) => (COUNTRY_ORDER[a.country] ?? 99) - (COUNTRY_ORDER[b.country] ?? 99) || a.rank - b.rank
+      );
+      const { _stickers, _countries, ...rest } = c;
+      void _stickers; void _countries;
+      return rest;
+    })
+    .sort((a, b) => b.chart_entries - a.chart_entries || a.best_rank - b.best_rank)
+    .slice(0, limit);
+}
+
+// Creator leaderboards for the three biggest LINE markets (JP, TH, TW): a combined "All"
+// board plus one per country, so the page can switch instantly without re-querying.
+export async function getCreatorLeaderboards(
   client: Client,
   topN = 100,
   limit = 60
-): Promise<LeaderboardCreator[]> {
+): Promise<CreatorLeaderboards> {
   const result = await client.execute({
     sql: `WITH global_latest AS (
             SELECT MAX(snapshot_date) AS gd FROM rankings
           ),
           latest_date AS (
-            -- only countries still actively scraped today; excludes stale country codes
-            -- left over from the old data source whose latest snapshot is an older date
             SELECT country, MAX(snapshot_date) AS d
             FROM rankings GROUP BY country
             HAVING MAX(snapshot_date) = (SELECT gd FROM global_latest)
@@ -224,62 +294,26 @@ export async function getCreatorLeaderboard(
           JOIN snap s ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
           JOIN products p ON p.id = cur.product_id
           WHERE cur.rank <= ?
-            AND cur.country IN (${FEATURED_COUNTRIES.map(() => '?').join(',')})
+            AND cur.country IN (${LEADERBOARD_COUNTRIES.map(() => '?').join(',')})
             AND p.author IS NOT NULL AND TRIM(p.author) != ''`,
-    args: [topN, ...FEATURED_COUNTRIES],
+    args: [topN, ...LEADERBOARD_COUNTRIES],
   });
 
-  const byAuthor = new Map<string, LeaderboardCreator & { _stickers: Set<string>; _countries: Set<string> }>();
-  for (const row of result.rows) {
-    const author = row.author as string;
-    const rank = row.rank as number;
-    const pid = row.id as string;
-    let c = byAuthor.get(author);
-    if (!c) {
-      c = {
-        author,
-        chart_entries: 0,
-        distinct_stickers: 0,
-        countries: 0,
-        by_country: {},
-        slots: [],
-        best_rank: rank,
-        sample_id: pid,
-        sample_name: row.name as string,
-        sample_image: (row.image_url as string | null) ?? null,
-        _stickers: new Set(),
-        _countries: new Set(),
-      };
-      byAuthor.set(author, c);
-    }
-    const cc = row.country as string;
-    c.chart_entries += 1;
-    c.by_country[cc] = (c.by_country[cc] ?? 0) + 1;
-    c.slots.push({ id: pid, name: row.name as string, country: cc, rank });
-    c._stickers.add(pid);
-    c._countries.add(cc);
-    if (rank < c.best_rank) {
-      c.best_rank = rank;
-      c.sample_id = pid;
-      c.sample_name = row.name as string;
-      c.sample_image = (row.image_url as string | null) ?? null;
-    }
-  }
+  const rows: SlotRow[] = result.rows.map((r) => ({
+    country: r.country as string,
+    rank: r.rank as number,
+    id: r.id as string,
+    name: r.name as string,
+    image_url: (r.image_url as string | null) ?? null,
+    author: r.author as string,
+  }));
 
-  return [...byAuthor.values()]
-    .map((c) => {
-      c.distinct_stickers = c._stickers.size;
-      c.countries = c._countries.size;
-      // group by country priority (JP > TH > TW > ID > US), then best rank within each
-      c.slots.sort(
-        (a, b) => (COUNTRY_ORDER[a.country] ?? 99) - (COUNTRY_ORDER[b.country] ?? 99) || a.rank - b.rank
-      );
-      const { _stickers, _countries, ...rest } = c;
-      void _stickers; void _countries;
-      return rest;
-    })
-    .sort((a, b) => b.chart_entries - a.chart_entries || a.best_rank - b.best_rank)
-    .slice(0, limit);
+  return {
+    all: aggregateCreators(rows, limit),
+    jp: aggregateCreators(rows.filter((r) => r.country === 'jp'), limit),
+    th: aggregateCreators(rows.filter((r) => r.country === 'th'), limit),
+    tw: aggregateCreators(rows.filter((r) => r.country === 'tw'), limit),
+  };
 }
 
 export async function getRankingHistory(client: Client, productId: string, country: string, days = 30) {

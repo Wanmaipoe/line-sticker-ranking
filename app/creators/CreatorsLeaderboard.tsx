@@ -24,12 +24,42 @@ interface Creator {
   sample_image: string | null;
 }
 
+interface Boards {
+  all: Creator[];
+  jp: Creator[];
+  th: Creator[];
+  tw: Creator[];
+}
+
+type Scope = 'all' | 'jp' | 'th' | 'tw';
+
+const SCOPES: { key: Scope; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'jp', label: '🇯🇵 JP' },
+  { key: 'th', label: '🇹🇭 TH' },
+  { key: 'tw', label: '🇹🇼 TW' },
+];
+
 const COLUMN_HINTS: Record<string, string> = {
-  slots: 'Total slots = each sticker × each country it charts in, within the latest top 100. Hover a number for the breakdown.',
+  slots: 'Total slots = each pack × each country it charts in, within the latest top 100. Hover a number for the breakdown.',
   packs: 'How many distinct sticker packs of theirs are charting',
-  countries: 'How many of the 5 markets (JP, TH, TW, ID, US) they chart in',
+  countries: 'How many of the 3 markets (JP, TH, TW) they chart in',
   best: 'Best (lowest) rank any of their packs has reached',
 };
+
+function rankClass(rank: number) {
+  if (rank === 1) return 'text-yellow-500 font-bold';
+  if (rank <= 3) return 'text-orange-400 font-semibold';
+  if (rank <= 10) return 'text-green-600 font-semibold';
+  return 'text-gray-600';
+}
+
+function medal(i: number) {
+  if (i === 0) return '🥇';
+  if (i === 1) return '🥈';
+  if (i === 2) return '🥉';
+  return null;
+}
 
 function TooltipTh({ hintKey, label, className }: { hintKey: string; label: string; className?: string }) {
   const [show, setShow] = useState(false);
@@ -85,23 +115,22 @@ function SlotsCell({ creator }: { creator: Creator }) {
   );
 }
 
-function rankClass(rank: number) {
-  if (rank === 1) return 'text-yellow-500 font-bold';
-  if (rank <= 3) return 'text-orange-400 font-semibold';
-  if (rank <= 10) return 'text-green-600 font-semibold';
-  return 'text-gray-600';
-}
-
-function PacksCell({ creator }: { creator: Creator }) {
+function PacksCell({ creator, hideOnMobile, primary }: { creator: Creator; hideOnMobile?: boolean; primary?: boolean }) {
   const [show, setShow] = useState(false);
   return (
     <td
-      className="relative px-3 py-3 text-center hidden sm:table-cell"
+      className={`relative px-3 py-3 text-center ${hideOnMobile ? 'hidden sm:table-cell' : ''}`}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
       onClick={() => setShow((v) => !v)}
     >
-      <span className="text-gray-600 cursor-help border-b border-dotted border-gray-300">{creator.distinct_stickers}</span>
+      <span
+        className={`cursor-help border-b border-dotted ${
+          primary ? 'font-semibold text-green-600 border-green-300' : 'text-gray-600 border-gray-300'
+        }`}
+      >
+        {creator.distinct_stickers}
+      </span>
       {show && (
         <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg z-50 shadow-lg w-72 max-h-64 overflow-y-auto text-left">
           <table className="w-full text-xs">
@@ -155,80 +184,89 @@ function CountriesCell({ creator }: { creator: Creator }) {
   );
 }
 
-function medal(i: number) {
-  if (i === 0) return '🥇';
-  if (i === 1) return '🥈';
-  if (i === 2) return '🥉';
-  return null;
-}
+export default function CreatorsLeaderboard({ boards }: { boards: Boards }) {
+  const [scope, setScope] = useState<Scope>('all');
+  const creators = boards[scope];
+  const isAll = scope === 'all';
+  const colSpan = isAll ? 6 : 4;
 
-export default function CreatorsLeaderboard({ creators }: { creators: Creator[] }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm bg-white mt-4">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-            <th className="text-left px-4 py-2.5 w-12">#</th>
-            <th className="text-left px-2 py-2.5">Creator</th>
-            <TooltipTh hintKey="slots" label="Chart slots" className="text-center px-3 py-2.5" />
-            <TooltipTh hintKey="packs" label="Packs" className="text-center px-3 py-2.5 hidden sm:table-cell" />
-            <TooltipTh hintKey="countries" label="Countries" className="text-center px-3 py-2.5 hidden sm:table-cell" />
-            <TooltipTh hintKey="best" label="Best" className="text-center px-3 py-2.5" />
-          </tr>
-        </thead>
-        <tbody>
-          {creators.length === 0 && (
-            <tr>
-              <td colSpan={6} className="text-center py-10 text-gray-400 text-sm">
-                No data yet
-              </td>
-            </tr>
-          )}
-          {creators.map((c, i) => (
-            <tr key={c.author} className="border-t border-gray-50 hover:bg-green-50 transition-colors">
-              <td className="px-4 py-3 text-center font-bold text-gray-400">{medal(i) ?? i + 1}</td>
-              <td className="px-2 py-3">
-                <a href={`/creator/${encodeURIComponent(c.author)}`} className="flex items-center gap-2.5 group">
-                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
-                    <Image
-                      src={
-                        c.sample_image ??
-                        `https://stickershop.line-scdn.net/stickershop/v1/product/${c.sample_id}/LINEStorePC/main.png`
-                      }
-                      alt={c.author}
-                      width={36}
-                      height={36}
-                      className="object-contain w-full h-full"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-gray-700 truncate group-hover:text-green-700">{c.author}</p>
-                    <p className="text-xs text-gray-400 truncate">{c.sample_name}</p>
-                  </div>
-                </a>
-              </td>
-              <SlotsCell creator={c} />
-              <PacksCell creator={c} />
-              <CountriesCell creator={c} />
-              <td className="px-3 py-3 text-center">
-                <span
-                  className={
-                    c.best_rank === 1
-                      ? 'text-yellow-500 font-bold'
-                      : c.best_rank <= 3
-                      ? 'text-orange-400 font-semibold'
-                      : c.best_rank <= 10
-                      ? 'text-green-600'
-                      : 'text-gray-500'
-                  }
-                >
-                  #{c.best_rank}
-                </span>
-              </td>
-            </tr>
+    <div className="mt-4">
+      {/* Market filter */}
+      <div className="flex justify-end mb-3">
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+          {SCOPES.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => setScope(s.key)}
+              className={`px-3 py-1.5 transition-colors ${
+                scope === s.key ? 'bg-green-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {s.label}
+            </button>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm bg-white">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <th className="text-left px-4 py-2.5 w-12">#</th>
+              <th className="text-left px-2 py-2.5">Creator</th>
+              {isAll && <TooltipTh hintKey="slots" label="Chart slots" className="text-center px-3 py-2.5" />}
+              <TooltipTh
+                hintKey="packs"
+                label="Packs"
+                className={`text-center px-3 py-2.5 ${isAll ? 'hidden sm:table-cell' : ''}`}
+              />
+              {isAll && <TooltipTh hintKey="countries" label="Countries" className="text-center px-3 py-2.5 hidden sm:table-cell" />}
+              <TooltipTh hintKey="best" label="Best" className="text-center px-3 py-2.5" />
+            </tr>
+          </thead>
+          <tbody>
+            {creators.length === 0 && (
+              <tr>
+                <td colSpan={colSpan} className="text-center py-10 text-gray-400 text-sm">
+                  No data yet
+                </td>
+              </tr>
+            )}
+            {creators.map((c, i) => (
+              <tr key={c.author} className="border-t border-gray-50 hover:bg-green-50 transition-colors">
+                <td className="px-4 py-3 text-center font-bold text-gray-400">{medal(i) ?? i + 1}</td>
+                <td className="px-2 py-3">
+                  <a href={`/creator/${encodeURIComponent(c.author)}`} className="flex items-center gap-2.5 group">
+                    <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
+                      <Image
+                        src={
+                          c.sample_image ??
+                          `https://stickershop.line-scdn.net/stickershop/v1/product/${c.sample_id}/LINEStorePC/main.png`
+                        }
+                        alt={c.author}
+                        width={36}
+                        height={36}
+                        className="object-contain w-full h-full"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-700 truncate group-hover:text-green-700">{c.author}</p>
+                      <p className="text-xs text-gray-400 truncate">{c.sample_name}</p>
+                    </div>
+                  </a>
+                </td>
+                {isAll && <SlotsCell creator={c} />}
+                <PacksCell creator={c} hideOnMobile={isAll} primary={!isAll} />
+                {isAll && <CountriesCell creator={c} />}
+                <td className="px-3 py-3 text-center">
+                  <span className={rankClass(c.best_rank)}>#{c.best_rank}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
