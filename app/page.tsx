@@ -101,8 +101,9 @@ export default function HomePage() {
   const [creatorResults, setCreatorResults] = useState<CreatorResult[]>([]);
   const [searching, setSearching] = useState(false);
 
-  // Favorites panel toggle
+  // Favorites panel toggle — auto-open on first load if the user has any saved
   const [showFavorites, setShowFavorites] = useState(false);
+  const [favAutoInit, setFavAutoInit] = useState(false);
 
   // Dashboard / trending
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -128,6 +129,15 @@ export default function HomePage() {
       .catch(() => setTrending(null))
       .finally(() => setLoadingTrend(false));
   }, []);
+
+  // Once favorites load from storage, open the panel automatically if there are any.
+  // Runs once so it never fights the user's manual toggle afterward.
+  useEffect(() => {
+    if (favLoaded && !favAutoInit) {
+      setFavAutoInit(true);
+      if (favorites.length > 0) setShowFavorites(true);
+    }
+  }, [favLoaded, favAutoInit, favorites.length]);
 
   useEffect(() => {
     if (!showFavorites || !favLoaded) return;
