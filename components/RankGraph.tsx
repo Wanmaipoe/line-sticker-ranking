@@ -138,7 +138,7 @@ export default function RankGraph({ data, countryName, countryFlag }: Props) {
                 ? 'bg-white text-gray-500 hover:bg-gray-50'
                 : 'bg-white text-gray-300 cursor-not-allowed'
             }`}
-            title={!hasHourlyData ? 'Hourly data available after cron runs multiple times' : undefined}
+            title={!hasHourlyData ? "No recent hourly data for this market — try one where it's currently ranked (check Freshness)" : undefined}
           >
             Hourly
           </button>
