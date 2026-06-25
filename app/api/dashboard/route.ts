@@ -6,7 +6,10 @@ import { COUNTRY_MAP } from '@/lib/countries';
 const FEATURED_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'] as const;
 
 export const runtime = 'nodejs';
-export const revalidate = 300;
+// Always fresh: the "Updated …" time must reflect the real latest snapshot. With ISR
+// caching, a low-traffic page could sit on a stale cached response for a long time
+// (nothing requests it → nothing triggers revalidation) and look like it stopped.
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const client = getDb();
