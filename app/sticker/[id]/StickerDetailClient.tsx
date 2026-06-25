@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import GlobalRankTable from '@/components/GlobalRankTable';
 import RankGraph from '@/components/RankGraph';
 import TypeBadge from '@/components/TypeBadge';
+import AlertSignup from '@/components/AlertSignup';
 import { COUNTRY_MAP } from '@/lib/countries';
 import { useFavorites } from '@/hooks/useFavorites';
 
@@ -170,6 +171,9 @@ export default function StickerDetailClient({
             >
               {refreshing ? 'Loading...' : '↻ Refresh'}
             </button>
+          </div>
+          <div className="mt-4">
+            <AlertSignup stickerId={id} />
           </div>
         </div>
 
