@@ -1,14 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type Status = 'idle' | 'sending' | 'sent' | 'following' | 'error';
 
+const STORAGE_KEY = 'lsr_alert_follows';
+
+function readFollows(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+function rememberFollow(id: string) {
+  try {
+    const set = new Set(readFollows());
+    set.add(id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function AlertSignup({ stickerId }: { stickerId: string }) {
+  const [followed, setFollowed] = useState(false); // remembered on this device
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    setFollowed(readFollows().includes(stickerId));
+  }, [stickerId]);
 
   async function submit() {
     if (!email.trim()) return;
@@ -26,6 +50,8 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
         setErr(data.error ?? 'Something went wrong');
         return;
       }
+      rememberFollow(stickerId);
+      setFollowed(true);
       setStatus(data.status === 'already_following' ? 'following' : 'sent');
     } catch {
       setStatus('error');
@@ -33,6 +59,7 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
     }
   }
 
+  // Just submitted, new subscriber → needs to confirm
   if (status === 'sent') {
     return (
       <div className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
@@ -40,10 +67,13 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
       </div>
     );
   }
-  if (status === 'following') {
+
+  // Already following on this device (revisit), or just added an already-verified email
+  if (followed || status === 'following') {
     return (
-      <div className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-        ✓ You&apos;re now tracking this sticker. We&apos;ll email you when it moves rank.
+      <div className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3 flex items-center gap-1.5">
+        🔔 You&apos;re getting rank alerts for this sticker
+        <span className="text-[11px] text-gray-400">· manage via the link in your emails</span>
       </div>
     );
   }
