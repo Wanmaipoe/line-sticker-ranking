@@ -18,7 +18,7 @@ export default function CreatorClient({ author, products }: Props) {
         <div className="flex items-center gap-3">
           <BackButton />
           <span className="text-gray-300">·</span>
-          <a href="/" className="text-sm text-green-600 hover:underline">LineStickerRanking</a>
+          <a href="/" className="text-sm text-green-600 hover:underline">Main</a>
         </div>
 
         <div className="mt-5 mb-6">

@@ -1,5 +1,6 @@
 import { getDb, getCreatorLeaderboards } from '@/lib/db';
 import CreatorsLeaderboard from './CreatorsLeaderboard';
+import BackButton from '@/components/BackButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,11 @@ export default async function CreatorsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <a href="/" className="text-sm text-green-600 hover:underline">← LineStickerRanking</a>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <span className="text-gray-300">·</span>
+          <a href="/" className="text-sm text-green-600 hover:underline">Main</a>
+        </div>
 
         <div className="mt-5 mb-2">
           <h1 className="text-xl font-bold text-gray-800">🏅 Top Creators</h1>
