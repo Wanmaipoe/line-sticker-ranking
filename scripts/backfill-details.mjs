@@ -35,7 +35,7 @@ const client = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
-const LIMIT = parseInt(process.env.BACKFILL_LIMIT ?? '400', 10);
+const LIMIT = parseInt(process.env.BACKFILL_LIMIT ?? '600', 10);
 const REFRESH = process.env.REFRESH === '1';
 
 const HEADERS = {
@@ -98,8 +98,15 @@ async function main() {
   // Price is per-country, so we pin country=US for a canonical USD price. Re-fetch
   // anything not yet in USD (catches the early no-param rows that came back in KRW etc).
   const where = REFRESH ? '' : "WHERE author_id IS NULL OR price IS NULL OR price_currency IS NULL OR price_currency != 'USD'";
+  // Always backfill CURRENTLY-RANKED products first (the ones users actually see), then
+  // the rest by recency. Otherwise a large historical backlog can crowd out new stickers.
   const res = await client.execute({
-    sql: `SELECT id FROM products ${where} ORDER BY updated_at DESC LIMIT ?`,
+    sql: `SELECT id FROM products p ${where}
+          ORDER BY
+            (EXISTS (SELECT 1 FROM rankings r WHERE r.product_id = p.id
+                     AND r.snapshot_date = (SELECT MAX(snapshot_date) FROM rankings))) DESC,
+            updated_at DESC
+          LIMIT ?`,
     args: [LIMIT],
   });
   const ids = res.rows.map((r) => r.id);
