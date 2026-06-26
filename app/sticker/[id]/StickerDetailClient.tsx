@@ -7,6 +7,7 @@ import GlobalRankTable from '@/components/GlobalRankTable';
 import RankGraph from '@/components/RankGraph';
 import TypeBadge from '@/components/TypeBadge';
 import AlertSignup from '@/components/AlertSignup';
+import BackButton from '@/components/BackButton';
 import { COUNTRY_MAP } from '@/lib/countries';
 import { useFavorites } from '@/hooks/useFavorites';
 
@@ -105,7 +106,9 @@ export default function StickerDetailClient({
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3 mb-6">
-          <a href="/" className="text-sm text-green-600 hover:underline">← LineStickerRanking</a>
+          <BackButton />
+          <span className="text-gray-300">·</span>
+          <a href="/" className="text-sm text-green-600 hover:underline">LineStickerRanking</a>
         </div>
 
         {/* Sticker Info Card */}

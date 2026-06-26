@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFavorites } from '@/hooks/useFavorites';
 import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
@@ -415,9 +416,9 @@ export default function HomePage() {
                   </div>
                   <div className="p-2 flex-1">
                     {country.top5.map((item) => (
-                      <button
+                      <Link
                         key={item.id}
-                        onClick={() => router.push(`/sticker/${item.id}`)}
+                        href={`/sticker/${item.id}`}
                         className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors text-left group"
                       >
                         <span
@@ -448,7 +449,7 @@ export default function HomePage() {
                         <span className="text-xs text-gray-600 truncate group-hover:text-green-700 leading-tight">
                           {item.name}
                         </span>
-                      </button>
+                      </Link>
                     ))}
                   </div>
                   <div className="px-3 py-2 border-t border-gray-50">
@@ -506,9 +507,9 @@ export default function HomePage() {
                 </div>
                 <div className="p-2">
                   {country.trending.map((item) => (
-                    <button
+                    <Link
                       key={item.id}
-                      onClick={() => router.push(`/sticker/${item.id}`)}
+                      href={`/sticker/${item.id}`}
                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors text-left group"
                     >
                       <span className="text-xs font-bold text-green-500 w-9 text-right flex-shrink-0">
@@ -530,7 +531,7 @@ export default function HomePage() {
                         {item.name}
                       </span>
                       <span className="text-xs text-gray-300 flex-shrink-0">#{item.current_rank}</span>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               </div>

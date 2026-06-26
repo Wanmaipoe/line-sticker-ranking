@@ -2,6 +2,7 @@
 
 import { useFavorites } from '@/hooks/useFavorites';
 import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
+import BackButton from '@/components/BackButton';
 
 interface Props {
   author: string;
@@ -14,9 +15,11 @@ export default function CreatorClient({ author, products }: Props) {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <a href="/" className="text-sm text-green-600 hover:underline">
-          ← LineStickerRanking
-        </a>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <span className="text-gray-300">·</span>
+          <a href="/" className="text-sm text-green-600 hover:underline">LineStickerRanking</a>
+        </div>
 
         <div className="mt-5 mb-6">
           <h1 className="text-xl font-bold text-gray-800">👤 {author}</h1>

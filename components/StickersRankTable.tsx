@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { COUNTRY_MAP } from '@/lib/countries';
 import TypeBadge from '@/components/TypeBadge';
@@ -103,7 +104,11 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
             >
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
+                  <Link
+                    href={`/sticker/${p.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 block"
+                  >
                     <Image
                       src={
                         p.image_url ??
@@ -117,29 +122,30 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
                         (e.target as HTMLImageElement).style.visibility = 'hidden';
                       }}
                     />
-                  </div>
+                  </Link>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium text-gray-700 truncate leading-tight">{p.name}</p>
+                      <Link
+                        href={`/sticker/${p.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-sm font-medium text-gray-700 truncate leading-tight hover:text-green-700"
+                      >
+                        {p.name}
+                      </Link>
                       <TypeBadge type={p.sticker_type} />
                     </div>
-                    {p.author && (
-                      <p
-                        className={`text-xs text-gray-400 truncate ${
-                          showAuthorLink ? 'hover:text-green-600 cursor-pointer' : ''
-                        }`}
-                        onClick={
-                          showAuthorLink
-                            ? (e) => {
-                                e.stopPropagation();
-                                router.push(`/creator/${encodeURIComponent(p.author!)}`);
-                              }
-                            : undefined
-                        }
-                      >
-                        {p.author}
-                      </p>
-                    )}
+                    {p.author &&
+                      (showAuthorLink ? (
+                        <Link
+                          href={`/creator/${encodeURIComponent(p.author)}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-gray-400 truncate hover:text-green-600 block"
+                        >
+                          {p.author}
+                        </Link>
+                      ) : (
+                        <p className="text-xs text-gray-400 truncate">{p.author}</p>
+                      ))}
                   </div>
                 </div>
               </td>
