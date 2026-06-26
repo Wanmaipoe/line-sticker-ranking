@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { COUNTRY_MAP } from '@/lib/countries';
@@ -45,6 +46,23 @@ function RankBadge({ rank }: { rank: number | null }) {
 
 export default function StickersRankTable({ products, isFavorite, onToggleFavorite, showAuthorLink }: Props) {
   const router = useRouter();
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+
+  function toggleSort(cc: string) {
+    setSort((prev) => (prev?.key === cc ? { key: cc, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key: cc, dir: 'asc' }));
+  }
+
+  // Sort by a country's rank; unranked (—) always sink to the bottom regardless of direction.
+  const sortedProducts = sort
+    ? [...products].sort((a, b) => {
+        const ar = a.rankings[sort.key];
+        const br = b.rankings[sort.key];
+        if (ar == null && br == null) return 0;
+        if (ar == null) return 1;
+        if (br == null) return -1;
+        return sort.dir === 'asc' ? ar - br : br - ar;
+      })
+    : products;
 
   if (!products.length) {
     return <div className="text-center py-12 text-gray-400 text-sm">No stickers found</div>;
@@ -58,9 +76,18 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
             <th className="text-left px-4 py-2.5 min-w-44">Sticker</th>
             {FEATURED.map((cc) => {
               const info = COUNTRY_MAP[cc];
+              const active = sort?.key === cc;
               return (
-                <th key={cc} className={`text-center px-3 py-2.5 w-16 ${MOBILE_HIDDEN.has(cc) ? 'hidden sm:table-cell' : ''}`}>
+                <th
+                  key={cc}
+                  onClick={() => toggleSort(cc)}
+                  title={`Sort by ${info?.name ?? cc.toUpperCase()} rank`}
+                  className={`text-center px-3 py-2.5 w-16 cursor-pointer select-none hover:text-gray-700 transition-colors ${
+                    MOBILE_HIDDEN.has(cc) ? 'hidden sm:table-cell' : ''
+                  } ${active ? 'text-green-600' : ''}`}
+                >
                   {info?.flag} {cc.toUpperCase()}
+                  <span className={`ml-0.5 ${active ? '' : 'text-gray-300'}`}>{active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
                 </th>
               );
             })}
@@ -68,7 +95,7 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
           </tr>
         </thead>
         <tbody>
-          {products.map((p) => (
+          {sortedProducts.map((p) => (
             <tr
               key={p.id}
               className="border-t border-gray-50 hover:bg-green-50 transition-colors cursor-pointer"
