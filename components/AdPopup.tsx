@@ -1,10 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-// Click-triggered (not auto-popup — auto-popups hurt UX/SEO and bounce rate).
 export default function AdPopup() {
   const [open, setOpen] = useState(false);
+
+  // Auto-show on every visit (slight delay so the page paints first), then closeable.
+  useEffect(() => {
+    const t = setTimeout(() => setOpen(true), 600);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <>
