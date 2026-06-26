@@ -5,9 +5,22 @@ import { useState, useEffect } from 'react';
 export default function AdPopup() {
   const [open, setOpen] = useState(false);
 
-  // Auto-show on every visit (slight delay so the page paints first), then closeable.
+  // Auto-show once per browser session (not on every page), then closeable. The
+  // floating button can still reopen it anytime.
   useEffect(() => {
-    const t = setTimeout(() => setOpen(true), 600);
+    try {
+      if (sessionStorage.getItem('lsr_ad_shown')) return;
+    } catch {
+      /* sessionStorage unavailable */
+    }
+    const t = setTimeout(() => {
+      setOpen(true);
+      try {
+        sessionStorage.setItem('lsr_ad_shown', '1');
+      } catch {
+        /* ignore */
+      }
+    }, 600);
     return () => clearTimeout(t);
   }, []);
 
