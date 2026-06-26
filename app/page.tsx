@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFavorites } from '@/hooks/useFavorites';
 import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
+import Footer from '@/components/Footer';
+import AdPopup from '@/components/AdPopup';
 
 type SearchMode = 'sticker' | 'creator';
 
@@ -539,7 +541,9 @@ export default function HomePage() {
           </div>
         </section>
 
+        <Footer />
       </main>
+      <AdPopup />
     </div>
   );
 }
