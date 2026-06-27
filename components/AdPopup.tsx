@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 
 export default function AdPopup() {
   const [open, setOpen] = useState(false);
+  const [imgOk, setImgOk] = useState(true);
 
-  // Auto-show once per browser session (not on every page), then closeable. The
-  // floating button can still reopen it anytime.
+  // Auto-show once per browser session, then closeable. Floating button reopens it.
   useEffect(() => {
     try {
       if (sessionStorage.getItem('lsr_ad_shown')) return;
@@ -34,35 +34,35 @@ export default function AdPopup() {
       </button>
 
       {open && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+        <div className="fixed top-4 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+          <button
+            onClick={() => setOpen(false)}
+            className="absolute top-2 right-2 z-10 bg-white/80 backdrop-blur rounded-full w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 text-xl leading-none shadow"
+            aria-label="Close"
           >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-gray-800 text-lg">📢 For Advertising</h3>
-              <button
-                onClick={() => setOpen(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Want to reach LINE sticker fans &amp; creators across Japan, Thailand, Taiwan, Indonesia &amp; the US?
-              Get in touch:
-            </p>
-            <a
-              href="mailto:linestickerranking@gmail.com?subject=Advertising%20inquiry"
-              className="block mt-4 text-center bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-2.5 rounded-xl transition-colors"
-            >
-              linestickerranking@gmail.com
-            </a>
-          </div>
+            ×
+          </button>
+          <a href="mailto:linestickerranking@gmail.com?subject=Advertising%20inquiry" className="block">
+            {imgOk ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src="/animated.png"
+                alt="For Advertising — linestickerranking@gmail.com"
+                onError={() => setImgOk(false)}
+                className="w-full h-auto block"
+              />
+            ) : (
+              <div className="p-6">
+                <h3 className="font-bold text-gray-800 text-lg mb-2">📢 For Advertising</h3>
+                <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                  Want to reach LINE sticker fans &amp; creators? Get in touch:
+                </p>
+                <div className="text-center bg-green-500 text-white text-sm font-medium py-2.5 rounded-xl">
+                  linestickerranking@gmail.com
+                </div>
+              </div>
+            )}
+          </a>
         </div>
       )}
     </>
