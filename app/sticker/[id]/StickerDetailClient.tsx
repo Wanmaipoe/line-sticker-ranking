@@ -25,6 +25,7 @@ interface RankRow {
   snapshot_hour: number;
   rank_24h_ago: number | null;
   best_30d: number | null;
+  is_current: boolean;
 }
 
 interface HistoryPoint {
@@ -95,11 +96,14 @@ export default function StickerDetailClient({
   const countryInfo = COUNTRY_MAP[selectedCountry];
   const favorited = favLoaded && isFavorite(id);
 
-  // Global footprint, computed from the per-country current ranks
-  const countriesRanked = rankings.length;
-  const bestRank = rankings.length ? Math.min(...rankings.map((r) => r.current_rank)) : null;
-  const top10 = rankings.filter((r) => r.current_rank <= 10).length;
-  const bestCountry = bestRank != null ? rankings.find((r) => r.current_rank === bestRank)?.country : null;
+  // Global footprint, computed only from markets where it's CURRENTLY ranked
+  // (a sticker that dropped out of every top 500 has no current footprint).
+  const currentRows = rankings.filter((r) => r.is_current);
+  const countriesRanked = currentRows.length;
+  const bestRank = currentRows.length ? Math.min(...currentRows.map((r) => r.current_rank)) : null;
+  const top10 = currentRows.filter((r) => r.current_rank <= 10).length;
+  const bestCountry = bestRank != null ? currentRows.find((r) => r.current_rank === bestRank)?.country : null;
+  const droppedOut = countriesRanked === 0 && rankings.length > 0;
   const priceLabel = formatPrice(price, priceCurrency);
 
   return (
@@ -208,6 +212,12 @@ export default function StickerDetailClient({
                 <p className="text-[11px] text-gray-400 mt-1">top 10 markets</p>
               </div>
             </div>
+          )}
+
+          {droppedOut && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mb-4">
+              Not currently in any market&apos;s top 500. Showing where it last charted and its 30-day history below.
+            </p>
           )}
 
           <GlobalRankTable

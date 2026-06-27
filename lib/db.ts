@@ -89,24 +89,27 @@ export async function getProductsWithRankings(
   const idPh = productIds.map(() => '?').join(',');
   const ccPh = countries.map(() => '?').join(',');
 
+  // Read each country's CURRENT snapshot only. A product not present in that snapshot
+  // has dropped out of the top 500, so it returns null ("—") instead of its last-seen
+  // (stale) rank from days ago.
   const result = await client.execute({
-    sql: `WITH latest_date AS (
-      SELECT product_id, country, MAX(snapshot_date) AS max_date
+    sql: `WITH country_latest AS (
+      SELECT country, MAX(snapshot_date) AS d
       FROM rankings
-      WHERE product_id IN (${idPh}) AND country IN (${ccPh})
-      GROUP BY product_id, country
+      WHERE country IN (${ccPh})
+      GROUP BY country
     ),
-    latest_hour AS (
-      SELECT r.product_id, r.country, MAX(r.snapshot_hour) AS max_hour
+    snap AS (
+      SELECT r.country, r.snapshot_date AS d, MAX(r.snapshot_hour) AS h
       FROM rankings r
-      JOIN latest_date l ON r.product_id = l.product_id AND r.country = l.country AND r.snapshot_date = l.max_date
-      GROUP BY r.product_id, r.country
+      JOIN country_latest cl ON r.country = cl.country AND r.snapshot_date = cl.d
+      GROUP BY r.country
     )
     SELECT r.product_id, r.country, r.rank
     FROM rankings r
-    JOIN latest_date ld ON r.product_id = ld.product_id AND r.country = ld.country AND r.snapshot_date = ld.max_date
-    JOIN latest_hour lh ON r.product_id = lh.product_id AND r.country = lh.country AND r.snapshot_hour = lh.max_hour`,
-    args: [...productIds, ...countries],
+    JOIN snap s ON r.country = s.country AND r.snapshot_date = s.d AND r.snapshot_hour = s.h
+    WHERE r.product_id IN (${idPh})`,
+    args: [...countries, ...productIds],
   });
 
   const out: Record<string, Record<string, number | null>> = {};
@@ -127,6 +130,11 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
       SELECT country, MAX(snapshot_date || printf('%02d', snapshot_hour)) AS latest_key
       FROM rankings
       WHERE product_id = ?
+      GROUP BY country
+    ),
+    country_latest AS (
+      SELECT country, MAX(snapshot_date || printf('%02d', snapshot_hour)) AS country_key
+      FROM rankings
       GROUP BY country
     ),
     prev24h AS (
@@ -150,10 +158,12 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
       r.snapshot_date,
       r.snapshot_hour,
       r2.rank AS rank_24h_ago,
-      b.best_rank AS best_30d
+      b.best_rank AS best_30d,
+      CASE WHEN l.latest_key = cl.country_key THEN 1 ELSE 0 END AS is_current
     FROM latest l
     JOIN rankings r ON r.product_id = ? AND r.country = l.country
       AND (r.snapshot_date || printf('%02d', r.snapshot_hour)) = l.latest_key
+    LEFT JOIN country_latest cl ON cl.country = l.country
     LEFT JOIN prev24h p ON p.country = l.country
     LEFT JOIN rankings r2 ON r2.product_id = ? AND r2.country = p.country
       AND (r2.snapshot_date || printf('%02d', r2.snapshot_hour)) = p.prev_key
@@ -169,6 +179,7 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
       snapshot_hour: row.snapshot_hour as number,
       rank_24h_ago: row.rank_24h_ago as number | null,
       best_30d: row.best_30d as number | null,
+      is_current: (row.is_current as number) === 1, // is this rank from the country's latest snapshot?
     }))
     .filter((r) => r.country in COUNTRY_ORDER) // featured markets only
     .sort((a, b) => COUNTRY_ORDER[a.country] - COUNTRY_ORDER[b.country]); // JP > TH > TW > ID > US

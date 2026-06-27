@@ -160,7 +160,7 @@ export default function RankGraph({ data, countryName, countryFlag }: Props) {
           />
           <YAxis
             reversed
-            domain={[Math.max(1, minRank - 2), Math.min(50, maxRank + 2)]}
+            domain={[Math.max(1, minRank - 2), maxRank + 2]}
             tick={{ fontSize: 10, fill: '#9ca3af' }}
             tickFormatter={(v) => `#${v}`}
             width={30}

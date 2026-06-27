@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { COUNTRY_MAP } from '@/lib/countries';
 
 const COLUMN_HINTS: Record<string, string> = {
-  current: 'Rank in this country as of the latest update',
+  current: 'Rank in this country right now. "—" means it has dropped out of the top 500',
   delta24h: 'Change vs. yesterday — ▲ means rank improved',
   best30d: 'Best (lowest) rank reached in the past 30 days',
-  freshness: 'How long ago this data was last updated',
+  freshness: 'How long ago this country was last seen ranking this sticker',
 };
 
 interface RankRow {
@@ -17,6 +17,7 @@ interface RankRow {
   snapshot_hour: number;
   rank_24h_ago: number | null;
   best_30d: number | null;
+  is_current: boolean;
 }
 
 interface Props {
@@ -109,11 +110,19 @@ export default function GlobalRankTable({ rows, selectedCountry, onSelectCountry
                     <span className="font-medium text-gray-700">{info?.name ?? row.country.toUpperCase()}</span>
                   </div>
                 </td>
-                <td className={`text-center px-3 py-3 ${rankColor(row.current_rank)}`}>
-                  #{row.current_rank}
+                <td
+                  className={`text-center px-3 py-3 ${
+                    row.is_current ? rankColor(row.current_rank) : 'text-gray-300'
+                  }`}
+                >
+                  {row.is_current ? `#${row.current_rank}` : '—'}
                 </td>
                 <td className="text-center px-3 py-3">
-                  {delta(row.current_rank, row.rank_24h_ago)}
+                  {row.is_current ? (
+                    delta(row.current_rank, row.rank_24h_ago)
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
                 </td>
                 <td className="text-center px-3 py-3 text-gray-500">
                   {row.best_30d != null ? `#${row.best_30d}` : '—'}
