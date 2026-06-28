@@ -204,7 +204,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <div className="flex items-center justify-between sm:justify-start">
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Image src="/mascot.png" alt="Bowl Cut Piggo" width={36} height={36} className="object-contain" />
+              <Image src="/mascot.png" alt="LineStickerRanking logo" width={36} height={36} className="object-contain rounded" />
               <span className="font-bold text-gray-800 text-lg">LineStickerRanking</span>
             </div>
             {dashboard?.updatedAt && (
