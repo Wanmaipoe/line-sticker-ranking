@@ -45,13 +45,13 @@ export const metadata: Metadata = {
     url: SITE_URL,
     locale: "en_US",
     alternateLocale: ["th_TH", "ja_JP"],
-    images: [{ url: "/icon.png", width: 456, height: 469, alt: SITE_NAME }],
+    // og:image is provided by the file-convention app/opengraph-image.tsx (1200x630).
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: TITLE,
     description: DESCRIPTION,
-    images: ["/icon.png"],
+    // twitter:image is provided by the file-convention app/twitter-image.tsx.
   },
   robots: {
     index: true,
