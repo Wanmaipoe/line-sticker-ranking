@@ -1,7 +1,22 @@
 import { getDb, getProductsByAuthor, getProductsWithRankings } from '@/lib/db';
 import CreatorClient from './CreatorClient';
+import JsonLd from '@/components/JsonLd';
+import { SITE_URL } from '@/lib/seo';
+import { notFound } from 'next/navigation';
+import { cache } from 'react';
+import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
+
+// decodeURIComponent throws URIError on malformed input (e.g. a crawler hitting
+// /creator/100%); that must resolve to 404, never a 500.
+function safeDecode(s: string): string | null {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return null;
+  }
+}
 
 const FEATURED = ['jp', 'th', 'tw', 'id', 'us'];
 
@@ -9,12 +24,51 @@ interface Props {
   params: Promise<{ name: string }>;
 }
 
+// Request-deduped so generateMetadata and the page share one author lookup.
+const getAuthorProducts = cache(async (author: string) => {
+  const client = getDb();
+  return getProductsByAuthor(client, author);
+});
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { name } = await params;
+  const author = safeDecode(name);
+  if (!author) {
+    return { title: 'Creator not found', robots: { index: false, follow: false } };
+  }
+  const canonical = `/creator/${encodeURIComponent(author)}`;
+  const products = await getAuthorProducts(author);
+
+  // A creator with nothing in the DB is a thin/empty page — keep it out of the index.
+  if (!products.length) {
+    return {
+      title: `${author} — LINE Sticker Creator`,
+      robots: { index: false, follow: true },
+      alternates: { canonical },
+    };
+  }
+
+  const description = `LINE sticker packs by ${author}, with live rankings and 30-day rank history across Japan, Thailand, Taiwan, Indonesia & the US.`;
+  return {
+    title: `${author} — LINE Sticker Creator`,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: 'profile',
+      title: `${author} — LINE Sticker Creator`,
+      description,
+      url: `${SITE_URL}${canonical}`,
+    },
+  };
+}
+
 export default async function CreatorPage({ params }: Props) {
   const { name } = await params;
-  const author = decodeURIComponent(name);
+  const author = safeDecode(name);
+  if (!author) notFound();
   const client = getDb();
 
-  const products = await getProductsByAuthor(client, author);
+  const products = await getAuthorProducts(author);
   const ids = products.map((p) => p.id);
   const rankings = await getProductsWithRankings(client, ids, FEATURED);
 
@@ -27,5 +81,20 @@ export default async function CreatorPage({ params }: Props) {
     rankings: rankings[p.id] ?? Object.fromEntries(FEATURED.map((cc) => [cc, null])),
   }));
 
-  return <CreatorClient author={author} products={withRankings} />;
+  const jsonLd = products.length
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: `${author} — LINE Stickers`,
+        url: `${SITE_URL}/creator/${encodeURIComponent(author)}`,
+        about: { '@type': 'Person', name: author },
+      }
+    : null;
+
+  return (
+    <>
+      {jsonLd && <JsonLd data={jsonLd} />}
+      <CreatorClient author={author} products={withRankings} />
+    </>
+  );
 }

@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from 'nodemailer';
+import { SITE_URL } from './seo';
 
 // Single place that talks to the mail provider. Today it's Gmail SMTP (free, App
 // Password auth); swapping to a domain + Resend later means only changing this file.
@@ -20,9 +21,8 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   await transport().sendMail({ from: FROM, to, subject, html });
 }
 
-// Absolute base URL for links in emails (verify / unsubscribe). Set APP_URL once a real
-// domain exists; falls back to the Vercel URL.
+// Absolute base URL for links in emails (verify / unsubscribe). Reuses SITE_URL so the
+// email origin can never drift from the canonical site origin used for SEO.
 export function appUrl(path = ''): string {
-  const base = process.env.APP_URL ?? 'https://line-sticker-ranking.vercel.app';
-  return base.replace(/\/$/, '') + path;
+  return SITE_URL + path;
 }

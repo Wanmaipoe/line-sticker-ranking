@@ -12,7 +12,7 @@ function page(title: string, body: string) {
 <div style="background:#fff;border-radius:16px;padding:40px;max-width:420px;text-align:center;box-shadow:0 2px 20px rgba(0,0,0,.08)">
 <div style="font-weight:700;font-size:18px;margin-bottom:16px">LineStickerRanking</div>${body}
 <p style="margin-top:24px"><a href="/" style="color:#06c755;text-decoration:none;font-size:14px">Go to site →</a></p></div></body></html>`,
-    { headers: { 'content-type': 'text/html; charset=utf-8' } }
+    { headers: { 'content-type': 'text/html; charset=utf-8', 'x-robots-tag': 'noindex, nofollow' } }
   );
 }
 

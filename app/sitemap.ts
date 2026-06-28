@@ -1,0 +1,58 @@
+import type { MetadataRoute } from 'next';
+import { getDb } from '@/lib/db';
+import { SITE_URL } from '@/lib/seo';
+
+// Regenerated hourly (ISR) so new stickers/creators appear without a redeploy, but a
+// crawler hitting /sitemap.xml repeatedly doesn't re-query the DB every time.
+export const revalidate = 3600;
+
+const FEATURED = ['jp', 'th', 'tw', 'id', 'us'];
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const client = getDb();
+  const now = new Date();
+
+  const staticRoutes: MetadataRoute.Sitemap = [
+    { url: `${SITE_URL}/`, lastModified: now, changeFrequency: 'hourly', priority: 1 },
+    { url: `${SITE_URL}/creators`, lastModified: now, changeFrequency: 'daily', priority: 0.8 },
+    ...FEATURED.map((cc) => ({
+      url: `${SITE_URL}/country/${cc}`,
+      lastModified: now,
+      changeFrequency: 'hourly' as const,
+      priority: 0.7,
+    })),
+  ];
+
+  // Every sticker in the DB has charted at least once, so each /sticker page has real,
+  // indexable content (live rank + 30-day history). ~15k rows → well under the 50k limit.
+  const products = await client.execute('SELECT id, updated_at FROM products ORDER BY updated_at DESC');
+  const stickerRoutes: MetadataRoute.Sitemap = products.rows.map((r) => {
+    const d = r.updated_at ? new Date(r.updated_at as string) : null;
+    return {
+      url: `${SITE_URL}/sticker/${r.id as string}`,
+      // One unparseable timestamp would make Next's XML serializer throw and 500 the whole
+      // sitemap, so fall back to `now` on any invalid date.
+      lastModified: d && !isNaN(d.getTime()) ? d : now,
+      changeFrequency: 'daily' as const,
+      priority: 0.6,
+    };
+  });
+
+  const authors = await client.execute(
+    "SELECT DISTINCT author FROM products WHERE author IS NOT NULL AND TRIM(author) != ''"
+  );
+  const creatorRoutes: MetadataRoute.Sitemap = authors.rows
+    .map((r) => r.author as string)
+    // An author whose name contains '/' encodes to %2F, which Next collapses back to a path
+    // separator and can't match in a single [name] segment — that URL would never resolve,
+    // so don't advertise it.
+    .filter((author) => !author.includes('/'))
+    .map((author) => ({
+      url: `${SITE_URL}/creator/${encodeURIComponent(author)}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.5,
+    }));
+
+  return [...staticRoutes, ...stickerRoutes, ...creatorRoutes];
+}

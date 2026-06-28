@@ -1,12 +1,22 @@
 import { getDb, getCreatorLeaderboards } from '@/lib/db';
 import CreatorsLeaderboard from './CreatorsLeaderboard';
 import BackButton from '@/components/BackButton';
+import { SITE_URL } from '@/lib/seo';
+import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata = {
-  title: 'Top Creators — LineStickerRanking',
-  description: "Which LINE sticker creators dominate the charts in Japan, Thailand & Taiwan right now.",
+export const metadata: Metadata = {
+  title: 'Top LINE Sticker Creators',
+  description:
+    "Which LINE sticker creators dominate the charts in Japan, Thailand & Taiwan right now — ranked by how many packs sit in the latest top 100.",
+  alternates: { canonical: '/creators' },
+  openGraph: {
+    type: 'website',
+    title: 'Top LINE Sticker Creators',
+    description: 'Which LINE sticker creators dominate the charts in Japan, Thailand & Taiwan right now.',
+    url: `${SITE_URL}/creators`,
+  },
 };
 
 export default async function CreatorsPage() {
