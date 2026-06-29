@@ -6,7 +6,16 @@ import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import type { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+// Cached (ISR) for 30 min instead of force-dynamic so repeated crawls of a creator page don't
+// re-query the DB each time; rankings only change hourly, so 30 min staleness is invisible.
+export const revalidate = 1800;
+
+// Required to put a dynamic-param route on the ISR cache path: with revalidate alone Next still
+// renders every request. Returning [] builds nothing up front — each /creator/<name> is generated
+// on first hit, then served from cache for `revalidate`, so repeat crawls skip the DB.
+export function generateStaticParams() {
+  return [];
+}
 
 // decodeURIComponent throws URIError on malformed input (e.g. a crawler hitting
 // /creator/100%); that must resolve to 404, never a 500.
@@ -37,7 +46,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: 'Creator not found', robots: { index: false, follow: false } };
   }
   const canonical = `/creator/${encodeURIComponent(author)}`;
-  const products = await getAuthorProducts(author);
+  let products: Awaited<ReturnType<typeof getAuthorProducts>>;
+  try {
+    products = await getAuthorProducts(author);
+  } catch {
+    // DB unreadable — basic metadata without noindex so a transient outage doesn't drop the page.
+    return { title: `${author} — LINE Sticker Creator`, alternates: { canonical } };
+  }
 
   // A creator with nothing in the DB is a thin/empty page — keep it out of the index.
   if (!products.length) {
@@ -68,9 +83,15 @@ export default async function CreatorPage({ params }: Props) {
   if (!author) notFound();
   const client = getDb();
 
-  const products = await getAuthorProducts(author);
-  const ids = products.map((p) => p.id);
-  const rankings = await getProductsWithRankings(client, ids, FEATURED);
+  let products: Awaited<ReturnType<typeof getAuthorProducts>> = [];
+  let rankings: Awaited<ReturnType<typeof getProductsWithRankings>> = {};
+  try {
+    products = await getAuthorProducts(author);
+    const ids = products.map((p) => p.id);
+    rankings = await getProductsWithRankings(client, ids, FEATURED);
+  } catch {
+    // DB unreadable (e.g. Turso read quota) — render an empty creator page (HTTP 200), not a 500.
+  }
 
   const withRankings = products.map((p) => ({
     id: p.id,

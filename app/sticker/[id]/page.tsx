@@ -1,12 +1,22 @@
 import { getDb, getLatestRankingsForProduct } from '@/lib/db';
 import StickerDetailClient from './StickerDetailClient';
 import JsonLd from '@/components/JsonLd';
+import DataUnavailable from '@/components/DataUnavailable';
 import { SITE_URL, SITE_NAME, stickerImage } from '@/lib/seo';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import type { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+// Cached (ISR) for 30 min instead of force-dynamic so repeated crawls of a sticker page don't
+// re-query the DB each time; rank/history only change hourly, so 30 min staleness is invisible.
+export const revalidate = 1800;
+
+// Required to put a dynamic-param route on the ISR cache path: with revalidate alone Next still
+// renders every request (no caching). Returning [] builds nothing up front — each /sticker/<id>
+// is generated on first hit, then served from cache for `revalidate`, so repeat crawls skip the DB.
+export function generateStaticParams() {
+  return [];
+}
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -32,7 +42,13 @@ const getProduct = cache(async (id: string) => {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const product = await getProduct(id);
+  let product: Awaited<ReturnType<typeof getProduct>> = null;
+  try {
+    product = await getProduct(id);
+  } catch {
+    // DB unreadable — generic title, not noindex, so a transient outage doesn't drop the page.
+    return { title: 'LINE Sticker Ranking & Price' };
+  }
   if (!product) {
     return { title: 'Sticker not found', robots: { index: false, follow: false } };
   }
@@ -60,11 +76,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StickerPage({ params }: Props) {
   const { id } = await params;
-  const product = await getProduct(id);
+  let product: Awaited<ReturnType<typeof getProduct>> = null;
+  try {
+    product = await getProduct(id);
+  } catch {
+    // DB unreadable (e.g. Turso read quota) — show a friendly 200 fallback, not a 500 to crawlers.
+    return <DataUnavailable />;
+  }
   if (!product) notFound();
 
   const client = getDb();
-  const rankings = await getLatestRankingsForProduct(client, id);
+  let rankings: Awaited<ReturnType<typeof getLatestRankingsForProduct>> = [];
+  try {
+    rankings = await getLatestRankingsForProduct(client, id);
+  } catch {
+    rankings = [];
+  }
   const img = product.image_url ?? stickerImage(id);
 
   const productJsonLd: Record<string, unknown> = {

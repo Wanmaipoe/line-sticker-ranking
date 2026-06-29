@@ -4,7 +4,9 @@ import BackButton from '@/components/BackButton';
 import { SITE_URL } from '@/lib/seo';
 import type { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+// Cached (ISR) for 30 min instead of force-dynamic so repeated crawls don't re-run the heavy
+// leaderboard aggregation query each time; the underlying data only changes hourly.
+export const revalidate = 1800;
 
 export const metadata: Metadata = {
   title: 'Top LINE Sticker Creators',
@@ -21,7 +23,12 @@ export const metadata: Metadata = {
 
 export default async function CreatorsPage() {
   const client = getDb();
-  const boards = await getCreatorLeaderboards(client, 100, 60);
+  let boards: Awaited<ReturnType<typeof getCreatorLeaderboards>> = { all: [], jp: [], th: [], tw: [] };
+  try {
+    boards = await getCreatorLeaderboards(client, 100, 60);
+  } catch {
+    // DB unreadable (e.g. Turso read quota) — render empty leaderboards (HTTP 200), not a 500.
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

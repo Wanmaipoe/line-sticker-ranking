@@ -6,7 +6,16 @@ import { SITE_URL, SITE_NAME } from '@/lib/seo';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+// Cached (ISR) for 30 min instead of force-dynamic so repeated crawls of a country page don't
+// re-query the DB each time; rankings only change hourly, so 30 min staleness is invisible.
+export const revalidate = 1800;
+
+// Required to put a dynamic-param route on the ISR cache path: with revalidate alone Next still
+// renders every request. Returning [] builds nothing up front — each /country/<code> is generated
+// on first hit, then served from cache for `revalidate`, so repeat crawls skip the DB.
+export function generateStaticParams() {
+  return [];
+}
 
 interface Props {
   params: Promise<{ code: string }>;
@@ -40,33 +49,39 @@ export default async function CountryPage({ params }: Props) {
   if (!isFeaturedCountry(cc)) notFound();
   const client = getDb();
 
-  const dateRes = await client.execute({
-    sql: `SELECT MAX(snapshot_date) AS latest, MAX(snapshot_hour) AS latest_hour FROM rankings WHERE country = ? AND snapshot_date = (SELECT MAX(snapshot_date) FROM rankings WHERE country = ?)`,
-    args: [cc, cc],
-  });
-  const latestDate = dateRes.rows[0]?.latest as string | null;
-  const latestHour = dateRes.rows[0]?.latest_hour as number | null;
-
+  let latestDate: string | null = null;
+  let latestHour: number | null = null;
   let items: { rank: number; id: string; name: string; image_url: string | null; author: string | null; sticker_type: string | null }[] = [];
 
-  if (latestDate) {
-    const result = await client.execute({
-      sql: `SELECT r.rank, p.id, p.name, p.image_url, p.author, p.sticker_type
-            FROM rankings r
-            JOIN products p ON p.id = r.product_id
-            WHERE r.country = ? AND r.snapshot_date = ? AND r.snapshot_hour = ?
-            ORDER BY r.rank ASC
-            LIMIT 50`,
-      args: [cc, latestDate, latestHour],
+  try {
+    const dateRes = await client.execute({
+      sql: `SELECT MAX(snapshot_date) AS latest, MAX(snapshot_hour) AS latest_hour FROM rankings WHERE country = ? AND snapshot_date = (SELECT MAX(snapshot_date) FROM rankings WHERE country = ?)`,
+      args: [cc, cc],
     });
-    items = result.rows.map((row) => ({
-      rank: row.rank as number,
-      id: row.id as string,
-      name: row.name as string,
-      image_url: row.image_url as string | null,
-      author: row.author as string | null,
-      sticker_type: row.sticker_type as string | null,
-    }));
+    latestDate = dateRes.rows[0]?.latest as string | null;
+    latestHour = dateRes.rows[0]?.latest_hour as number | null;
+
+    if (latestDate) {
+      const result = await client.execute({
+        sql: `SELECT r.rank, p.id, p.name, p.image_url, p.author, p.sticker_type
+              FROM rankings r
+              JOIN products p ON p.id = r.product_id
+              WHERE r.country = ? AND r.snapshot_date = ? AND r.snapshot_hour = ?
+              ORDER BY r.rank ASC
+              LIMIT 50`,
+        args: [cc, latestDate, latestHour],
+      });
+      items = result.rows.map((row) => ({
+        rank: row.rank as number,
+        id: row.id as string,
+        name: row.name as string,
+        image_url: row.image_url as string | null,
+        author: row.author as string | null,
+        sticker_type: row.sticker_type as string | null,
+      }));
+    }
+  } catch {
+    // DB unreadable (e.g. Turso read quota) — render the country shell with no items (HTTP 200).
   }
 
   const info = COUNTRY_MAP[cc];
