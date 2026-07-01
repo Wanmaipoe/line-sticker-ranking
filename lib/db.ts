@@ -87,27 +87,24 @@ export async function getProductsWithRankings(
   if (!productIds.length) return {};
 
   const idPh = productIds.map(() => '?').join(',');
-  const ccPh = countries.map(() => '?').join(',');
+  // A literal country list (UNION ALL of one row each) so the per-country latest snapshot is
+  // found via index seek, not a MAX(...) GROUP BY that scans the whole rankings table.
+  const ccUnion = countries.map((_, i) => (i === 0 ? 'SELECT ? AS country' : 'UNION ALL SELECT ?')).join(' ');
 
-  // Read each country's CURRENT snapshot only. A product not present in that snapshot
-  // has dropped out of the top 500, so it returns null ("—") instead of its last-seen
-  // (stale) rank from days ago.
+  // Read each country's CURRENT snapshot only. A product not present in that snapshot has
+  // dropped out of the top 500, so it returns null ("—") instead of a stale last-seen rank.
+  // `snap` uses correlated ORDER BY ... LIMIT 1 subqueries (index seek per country) instead of
+  // MAX(snapshot_date) GROUP BY country, which used to scan the whole table (~264k rows read).
   const result = await client.execute({
-    sql: `WITH country_latest AS (
-      SELECT country, MAX(snapshot_date) AS d
-      FROM rankings
-      WHERE country IN (${ccPh})
-      GROUP BY country
-    ),
-    snap AS (
-      SELECT r.country, r.snapshot_date AS d, MAX(r.snapshot_hour) AS h
-      FROM rankings r
-      JOIN country_latest cl ON r.country = cl.country AND r.snapshot_date = cl.d
-      GROUP BY r.country
+    sql: `WITH snap AS (
+      SELECT c.country AS country,
+        (SELECT snapshot_date FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS d,
+        (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS h
+      FROM (${ccUnion}) AS c
     )
     SELECT r.product_id, r.country, r.rank
-    FROM rankings r
-    JOIN snap s ON r.country = s.country AND r.snapshot_date = s.d AND r.snapshot_hour = s.h
+    FROM snap s
+    JOIN rankings r ON r.country = s.country AND r.snapshot_date = s.d AND r.snapshot_hour = s.h
     WHERE r.product_id IN (${idPh})`,
     args: [...countries, ...productIds],
   });
@@ -288,29 +285,25 @@ export async function getCreatorLeaderboards(
   topN = 100,
   limit = 60
 ): Promise<CreatorLeaderboards> {
+  // Literal country list so each country's latest snapshot is found by index seek, not a
+  // MAX(...) GROUP BY that scanned the whole rankings table (~479k rows read — the biggest
+  // single read source). Uses each country's OWN latest snapshot (consistent with the
+  // dashboard / sticker pages) rather than dropping any country not on the global latest date.
+  const ccUnion = LEADERBOARD_COUNTRIES.map((_, i) => (i === 0 ? 'SELECT ? AS country' : 'UNION ALL SELECT ?')).join(' ');
   const result = await client.execute({
-    sql: `WITH global_latest AS (
-            SELECT MAX(snapshot_date) AS gd FROM rankings
-          ),
-          latest_date AS (
-            SELECT country, MAX(snapshot_date) AS d
-            FROM rankings GROUP BY country
-            HAVING MAX(snapshot_date) = (SELECT gd FROM global_latest)
-          ),
-          snap AS (
-            SELECT r.country, r.snapshot_date AS d, MAX(r.snapshot_hour) AS h
-            FROM rankings r
-            JOIN latest_date l ON r.country = l.country AND r.snapshot_date = l.d
-            GROUP BY r.country
+    sql: `WITH snap AS (
+            SELECT c.country AS country,
+              (SELECT snapshot_date FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS d,
+              (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS h
+            FROM (${ccUnion}) AS c
           )
           SELECT cur.country, cur.rank, p.id, p.name, p.image_url, p.author
-          FROM rankings cur
-          JOIN snap s ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
+          FROM snap s
+          JOIN rankings cur ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
           JOIN products p ON p.id = cur.product_id
           WHERE cur.rank <= ?
-            AND cur.country IN (${LEADERBOARD_COUNTRIES.map(() => '?').join(',')})
             AND p.author IS NOT NULL AND TRIM(p.author) != ''`,
-    args: [topN, ...LEADERBOARD_COUNTRIES],
+    args: [...LEADERBOARD_COUNTRIES, topN],
   });
 
   const rows: SlotRow[] = result.rows.map((r) => ({
