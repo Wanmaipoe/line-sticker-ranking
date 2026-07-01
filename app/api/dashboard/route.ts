@@ -15,9 +15,11 @@ export async function GET() {
   try {
     const client = getDb();
 
-    // For the "Updated …" label only: snapshot_date + created_at of the most recently written row.
+    // For the "Updated …" label only: newest snapshot's date + a created_at from it. Uses
+    // idx_rankings_date_hour (reverse scan, LIMIT 1 → ~1 row) instead of MAX(created_at), which
+    // has no index and would full-scan the whole table on every 10-min regeneration.
     const latestResult = await client.execute(
-      `SELECT snapshot_date, MAX(created_at) as updated_at FROM rankings`
+      `SELECT snapshot_date, created_at as updated_at FROM rankings ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1`
     );
     const latestRow = latestResult.rows[0];
     if (!latestRow?.snapshot_date) {

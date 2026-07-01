@@ -132,11 +132,6 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
       WHERE product_id = ?
       GROUP BY country
     ),
-    country_latest AS (
-      SELECT country, MAX(snapshot_date || printf('%02d', snapshot_hour)) AS country_key
-      FROM rankings
-      GROUP BY country
-    ),
     prev24h AS (
       SELECT country, MAX(snapshot_date || printf('%02d', snapshot_hour)) AS prev_key
       FROM rankings
@@ -159,11 +154,19 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
       r.snapshot_hour,
       r2.rank AS rank_24h_ago,
       b.best_rank AS best_30d,
-      CASE WHEN l.latest_key = cl.country_key THEN 1 ELSE 0 END AS is_current
+      -- is this rank from the country's CURRENT snapshot? Compare the product's latest key for
+      -- this country against the country's overall latest, fetched per-country via the index
+      -- (ORDER BY ... LIMIT 1 → ~1 row) instead of a whole-table MAX-over-concat scan.
+      CASE WHEN l.latest_key = (
+             SELECT rc.snapshot_date || printf('%02d', rc.snapshot_hour)
+             FROM rankings rc
+             WHERE rc.country = l.country
+             ORDER BY rc.snapshot_date DESC, rc.snapshot_hour DESC
+             LIMIT 1
+           ) THEN 1 ELSE 0 END AS is_current
     FROM latest l
     JOIN rankings r ON r.product_id = ? AND r.country = l.country
       AND (r.snapshot_date || printf('%02d', r.snapshot_hour)) = l.latest_key
-    LEFT JOIN country_latest cl ON cl.country = l.country
     LEFT JOIN prev24h p ON p.country = l.country
     LEFT JOIN rankings r2 ON r2.product_id = ? AND r2.country = p.country
       AND (r2.snapshot_date || printf('%02d', r2.snapshot_hour)) = p.prev_key
