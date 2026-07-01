@@ -14,9 +14,18 @@ jobs:
         with:
           node-version: '20'
       - name: Install dependencies
-        run: npm install @libsql/client
+        run: npm install @libsql/client cheerio
       - name: Run scraper
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
         run: node scripts/scrape-daily.mjs
+      # The showcase grid the scraper reads has no creator name, so every new sticker lands
+      # with author=NULL. Fill it from each product's detail page, a bounded batch per run,
+      # so creator pages / Top Creators stay complete without slowing the hourly scrape.
+      - name: Backfill creator names
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          BATCH: '400'
+        run: node scripts/backfill-authors.mjs
