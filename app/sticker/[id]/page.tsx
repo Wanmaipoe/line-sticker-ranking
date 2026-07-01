@@ -1,4 +1,4 @@
-import { getDb, getLatestRankingsForProduct } from '@/lib/db';
+import { getDb, getLatestRankingsForProduct, getRankingHistoryAll } from '@/lib/db';
 import StickerDetailClient from './StickerDetailClient';
 import JsonLd from '@/components/JsonLd';
 import DataUnavailable from '@/components/DataUnavailable';
@@ -92,6 +92,14 @@ export default async function StickerPage({ params }: Props) {
   } catch {
     rankings = [];
   }
+  // All-country 30-day history in one PK-indexed read, fetched server-side so the client chart
+  // (all-country + per-country views) needs zero further DB reads. Cached with the page (ISR).
+  let history: Awaited<ReturnType<typeof getRankingHistoryAll>> = [];
+  try {
+    history = await getRankingHistoryAll(client, id, 30);
+  } catch {
+    history = [];
+  }
   const img = product.image_url ?? stickerImage(id);
 
   const productJsonLd: Record<string, unknown> = {
@@ -137,6 +145,7 @@ export default async function StickerPage({ params }: Props) {
         description={product.description}
         stickerType={product.sticker_type}
         initialRankings={rankings}
+        initialHistory={history}
       />
     </>
   );

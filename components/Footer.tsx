@@ -9,6 +9,7 @@ export default function Footer() {
         </a>
       </p>
       <p>Dev by: PorTowelMan</p>
+      <p>Team : NumfarangIpluem, CEO Parn, WKAmbitious, KingMom</p>
     </footer>
   );
 }

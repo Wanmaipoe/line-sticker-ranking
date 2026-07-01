@@ -345,3 +345,23 @@ export async function getRankingHistory(client: Client, productId: string, count
     rank: row.rank as number,
   }));
 }
+
+// All-country 30-day history for one product in a single PK-indexed read (product_id is the
+// PRIMARY KEY prefix, so this touches only that product's rows — cheap). The sticker page
+// fetches this ONCE server-side (ISR-cached), letting the client render the all-country chart
+// and filter to a single country with zero extra DB reads.
+export async function getRankingHistoryAll(client: Client, productId: string, days = 30) {
+  const result = await client.execute({
+    sql: `SELECT country, snapshot_date, snapshot_hour, rank
+          FROM rankings
+          WHERE product_id = ? AND snapshot_date >= date('now', ? || ' days')
+          ORDER BY country ASC, snapshot_date ASC, snapshot_hour ASC`,
+    args: [productId, `-${days}`],
+  });
+  return result.rows.map((row) => ({
+    country: row.country as string,
+    snapshot_date: row.snapshot_date as string,
+    snapshot_hour: row.snapshot_hour as number,
+    rank: row.rank as number,
+  }));
+}

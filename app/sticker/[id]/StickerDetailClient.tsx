@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import GlobalRankTable from '@/components/GlobalRankTable';
@@ -28,7 +28,8 @@ interface RankRow {
   is_current: boolean;
 }
 
-interface HistoryPoint {
+interface HistoryRow {
+  country: string;
   snapshot_date: string;
   snapshot_hour: number;
   rank: number;
@@ -44,6 +45,7 @@ interface Props {
   description: string | null;
   stickerType: string | null;
   initialRankings: RankRow[];
+  initialHistory: HistoryRow[];
 }
 
 export default function StickerDetailClient({
@@ -56,6 +58,7 @@ export default function StickerDetailClient({
   description,
   stickerType,
   initialRankings,
+  initialHistory,
 }: Props) {
   const router = useRouter();
   const { isFavorite, toggle, loaded: favLoaded } = useFavorites();
@@ -63,23 +66,14 @@ export default function StickerDetailClient({
   const [selectedCountry, setSelectedCountry] = useState<string>(
     initialRankings[0]?.country ?? 'th'
   );
-  const [history, setHistory] = useState<HistoryPoint[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  // The chart opens on the all-country view every time, and switches to a single country when
+  // the user picks one (via the toggle or by clicking a rank-matrix row).
+  const [viewMode, setViewMode] = useState<'all' | 'each'>('all');
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchHistory(selectedCountry);
-  }, [selectedCountry, id]);
-
-  async function fetchHistory(country: string) {
-    setLoadingHistory(true);
-    try {
-      const res = await fetch(`/api/sticker/${id}/history?country=${country}&days=30`);
-      const data = await res.json();
-      setHistory(data.history ?? []);
-    } finally {
-      setLoadingHistory(false);
-    }
+  function selectCountry(cc: string) {
+    setSelectedCountry(cc);
+    setViewMode('each');
   }
 
   async function refreshRankings() {
@@ -93,7 +87,6 @@ export default function StickerDetailClient({
     }
   }
 
-  const countryInfo = COUNTRY_MAP[selectedCountry];
   const favorited = favLoaded && isFavorite(id);
 
   // Global footprint, computed only from markets where it's CURRENTLY ranked
@@ -223,24 +216,19 @@ export default function StickerDetailClient({
           <GlobalRankTable
             rows={rankings}
             selectedCountry={selectedCountry}
-            onSelectCountry={setSelectedCountry}
+            onSelectCountry={selectCountry}
           />
         </div>
 
         {/* Graph Panel */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <h2 className="font-bold text-gray-700 mb-4">Ranking history</h2>
-          {loadingHistory ? (
-            <div className="flex items-center justify-center h-48 text-sm text-gray-400">
-              Loading...
-            </div>
-          ) : (
-            <RankGraph
-              data={history}
-              countryName={countryInfo?.name ?? selectedCountry.toUpperCase()}
-              countryFlag={countryInfo?.flag ?? '🌏'}
-            />
-          )}
+          <RankGraph
+            allData={initialHistory}
+            selectedCountry={selectedCountry}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
         </div>
       </div>
     </div>
