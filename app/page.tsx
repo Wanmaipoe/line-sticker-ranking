@@ -117,21 +117,29 @@ function toRelative(isoString: string | null): string {
 const STICKER_CDN = (id: string) =>
   `https://stickershop.line-scdn.net/stickershop/v1/product/${id}/LINEStorePC/main.png`;
 
-// Rank badge. The podium (1/2/3) renders as a real gold/silver/bronze medal disc so the top three
-// pop (Von Restorff — one clear focal point per card); 4/5 stay as a plain muted number.
-const MEDAL: Record<number, string> = {
-  1: 'bg-[#f5c518] text-yellow-900 ring-1 ring-[#d4a800]', // gold
-  2: 'bg-[#c9ccd1] text-gray-700 ring-1 ring-[#a9adb3]', // silver
-  3: 'bg-[#cd7f32] text-white ring-1 ring-[#a4641f]', // bronze
+// Rank badge. The podium (1/2/3) renders as a real gold/silver/bronze medal — a ribbon + a
+// metallic medallion disc with the number — so the top three pop (Von Restorff); 4/5 stay a plain
+// muted number. Colors follow the classic medal palette (gold red+blue ribbon, silver purple,
+// bronze blue).
+const MEDAL_COLORS: Record<number, { disc: string; ring: string; num: string; rL: string; rR: string }> = {
+  1: { disc: '#f5c518', ring: '#dca600', num: '#6b4e00', rL: '#ef4444', rR: '#3b82f6' },
+  2: { disc: '#cdd2d8', ring: '#a7adb5', num: '#475569', rL: '#8b5cf6', rR: '#8b5cf6' },
+  3: { disc: '#cd7f32', ring: '#a4641f', num: '#ffffff', rL: '#3b82f6', rR: '#3b82f6' },
 };
 function RankBadge({ rank }: { rank: number }) {
   if (rank <= 3) {
+    const c = MEDAL_COLORS[rank];
     return (
-      <span
-        className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${MEDAL[rank]}`}
-        title={`Rank ${rank}`}
-      >
-        {rank}
+      <span className="flex-shrink-0 w-6 flex justify-center" title={`Rank ${rank}`}>
+        <svg width="22" height="27" viewBox="0 0 24 30" role="img" aria-label={`Rank ${rank}`}>
+          <polygon points="10,13 12.5,13 7,2 4,2" fill={c.rL} />
+          <polygon points="11.5,13 14,13 20,2 17,2" fill={c.rR} />
+          <circle cx="12" cy="20" r="8" fill={c.disc} stroke={c.ring} strokeWidth="1.5" />
+          <circle cx="12" cy="20" r="5.3" fill="none" stroke={c.ring} strokeWidth="0.75" opacity="0.5" />
+          <text x="12" y="20.5" textAnchor="middle" dominantBaseline="central" fontSize="9" fontWeight="700" fill={c.num}>
+            {rank}
+          </text>
+        </svg>
       </span>
     );
   }
