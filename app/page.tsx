@@ -16,9 +16,8 @@ type SearchMode = 'sticker' | 'creator';
 // so restoring them here is a one-line change.
 const HOME_COUNTRIES = ['jp', 'th', 'tw'];
 
-// Quick-jump chips shown at the top of the ranking section (where "Explore rankings" scrolls to).
-// Each links to that country's full Top 50 page. Hardcoded so they render instantly, independent
-// of the dashboard fetch.
+// Country options in the "Explore rankings" picker modal. Each links to that country's full
+// Top 50 page (/country/[code]).
 const HOME_COUNTRY_CHIPS = [
   { code: 'jp', name: 'Japan', flag: '🇯🇵' },
   { code: 'th', name: 'Thailand', flag: '🇹🇭' },
@@ -213,6 +212,15 @@ function Thumb({ id, name, image_url, size = 48 }: { id: string; name: string; i
 export default function HomePage() {
   const router = useRouter();
   const { favorites, isFavorite, toggle } = useFavorites();
+
+  // "Explore rankings" opens a small modal to pick a country → its full Top 50 page.
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  useEffect(() => {
+    if (!showCountryPicker) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setShowCountryPicker(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showCountryPicker]);
 
   // Search
   const [query, setQuery] = useState('');
@@ -461,12 +469,12 @@ export default function HomePage() {
             Top 500 charts refreshed every hour straight from LINE Store, with 30-day rank history and the biggest movers.
           </p>
           <div className="flex flex-wrap items-center gap-2 mt-4">
-            <a
-              href="#top5"
+            <button
+              onClick={() => setShowCountryPicker(true)}
               className="text-sm font-medium bg-[#06c755] text-white px-4 py-2 rounded-xl hover:bg-[#05b34c] transition-colors"
             >
               Explore rankings
-            </a>
+            </button>
             <a
               href="/favorites"
               className="text-sm font-medium bg-white text-green-700 border border-green-200 px-4 py-2 rounded-xl hover:bg-green-50 transition-colors"
@@ -491,21 +499,6 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-gray-700 text-base">🏆 Top 5 per country</h2>
             <span className="text-xs text-gray-400 hidden sm:inline">Tap a sticker for its 30-day history</span>
-          </div>
-
-          {/* Quick jump to each country's full Top 50 */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {HOME_COUNTRY_CHIPS.map((c) => (
-              <a
-                key={c.code}
-                href={`/country/${c.code}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700 hover:bg-green-50 transition-colors"
-              >
-                <span aria-hidden>{c.flag}</span>
-                {c.name}
-                <span className="text-[11px] text-gray-400">Top 50 →</span>
-              </a>
-            ))}
           </div>
 
             {loadingDash && (
@@ -656,6 +649,44 @@ export default function HomePage() {
 
         <Footer />
       </main>
+
+      {/* Country picker — opened by the hero "Explore rankings" button. Pick a country → its
+          full Top 50 page. */}
+      {showCountryPicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose a country"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCountryPicker(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-sm p-6">
+            <button
+              onClick={() => setShowCountryPicker(false)}
+              aria-label="Close"
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 text-xl leading-none transition-colors"
+            >
+              ×
+            </button>
+            <h2 className="font-bold text-gray-800 text-lg">Explore rankings</h2>
+            <p className="text-sm text-gray-500 mt-1 mb-4">Pick a country to see its full Top 50.</p>
+            <div className="space-y-2">
+              {HOME_COUNTRY_CHIPS.map((c) => (
+                <a
+                  key={c.code}
+                  href={`/country/${c.code}`}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-colors"
+                >
+                  <span className="text-2xl" aria-hidden>{c.flag}</span>
+                  <span className="font-medium text-gray-700">{c.name}</span>
+                  <span className="ml-auto text-xs text-gray-400">Top 50 →</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <AdPopup />
     </div>
   );
