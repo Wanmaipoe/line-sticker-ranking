@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -204,14 +204,6 @@ function Thumb({ id, name, image_url, size = 48 }: { id: string; name: string; i
 export default function HomePage() {
   const router = useRouter();
   const { favorites, isFavorite, toggle } = useFavorites();
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  // Jump to the search box in creator mode — the hero's "Track your pack" CTA for creators.
-  function focusCreatorSearch() {
-    handleModeChange('creator');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    setTimeout(() => searchRef.current?.focus(), 300);
-  }
 
   // Search
   const [query, setQuery] = useState('');
@@ -328,7 +320,6 @@ export default function HomePage() {
               </div>
               <div className="relative flex-1">
                 <input
-                  ref={searchRef}
                   type="text"
                   value={query}
                   onChange={handleInput}
@@ -467,12 +458,12 @@ export default function HomePage() {
             >
               Explore rankings
             </a>
-            <button
-              onClick={focusCreatorSearch}
+            <a
+              href="/favorites"
               className="text-sm font-medium bg-white text-green-700 border border-green-200 px-4 py-2 rounded-xl hover:bg-green-50 transition-colors"
             >
               Track your pack
-            </button>
+            </a>
             <span className="text-xs text-gray-400 sm:ml-auto w-full sm:w-auto">
               1,500 live ranks · 3 countries
               {hotMoversCount > 0 ? (
