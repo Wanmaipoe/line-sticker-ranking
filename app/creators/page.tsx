@@ -9,14 +9,15 @@ import type { Metadata } from 'next';
 export const revalidate = 1800;
 
 export const metadata: Metadata = {
-  title: 'Top LINE Sticker Creators',
+  // SEO: this page targets the "LINE creator ranking" / "creator ranking" queries.
+  title: 'LINE Creator Ranking — Top Sticker Creators',
   description:
-    "Which LINE sticker creators dominate the charts in Japan, Thailand & Taiwan right now — ranked by how many packs sit in the latest top 100.",
+    'Live LINE creator ranking — which sticker creators dominate the top 100 charts in Japan, Thailand & Taiwan, updated hourly.',
   alternates: { canonical: '/creators' },
   openGraph: {
     type: 'website',
-    title: 'Top LINE Sticker Creators',
-    description: 'Which LINE sticker creators dominate the charts in Japan, Thailand & Taiwan right now.',
+    title: 'LINE Creator Ranking — Top Sticker Creators',
+    description: 'Live LINE creator ranking — which sticker creators dominate the top 100 charts in Japan, Thailand & Taiwan, updated hourly.',
     url: `${SITE_URL}/creators`,
   },
 };
@@ -40,7 +41,7 @@ export default async function CreatorsPage() {
         </div>
 
         <div className="mt-5 mb-2">
-          <h1 className="text-xl font-bold text-gray-800">🏅 Top Creators</h1>
+          <h1 className="text-xl font-bold text-gray-800">🏅 LINE Creator Ranking</h1>
           <p className="text-sm text-gray-500 mt-1">
             Which creators dominate the charts in Japan, Thailand &amp; Taiwan (latest top 100).
           </p>

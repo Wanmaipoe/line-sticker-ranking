@@ -17,9 +17,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const TITLE = "LineStickerRanking — Live LINE Sticker Rankings Across Asia";
+// SEO: lead with the exact search phrase "LINE Sticker Ranking" (spaced, not the camelCase
+// brand) — Google tokenizes the spaced phrase better and shows ~60 chars of title.
+const TITLE = "LINE Sticker Ranking — Live Top 500 Charts, Updated Hourly";
 const DESCRIPTION =
-  "Track LINE sticker rankings across Japan, Thailand, Taiwan, Indonesia & the US — refreshed hourly, with 30-day rank history, top creators, and the biggest movers.";
+  "Live LINE sticker ranking updated every hour. Top 500 charts for Japan, Thailand, Taiwan, Indonesia & the US, 30-day rank history and LINE creator rankings.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -30,6 +32,9 @@ export const metadata: Metadata = {
   keywords: [
     "LINE sticker",
     "LINE sticker ranking",
+    "LINE ranking",
+    "LINE creator ranking",
+    "creator ranking",
     "LINE sticker chart",
     "top LINE stickers",
     "สติกเกอร์ไลน์",

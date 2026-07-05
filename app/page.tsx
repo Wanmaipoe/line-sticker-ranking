@@ -356,9 +356,10 @@ export default function HomePage() {
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-10">
 
-        {/* Tagline */}
+        {/* Tagline — a real <h1> so Google's snippet/title generation sees the exact
+            "LINE sticker ranking" phrase (Tailwind preflight keeps h1 visually identical to p). */}
         <div className="text-center pt-2 pb-1">
-          <p className="text-sm text-gray-500">See which LINE stickers are trending — rankings refreshed every hour across Japan, Thailand, Taiwan, Indonesia & the US, straight from LINE.</p>
+          <h1 className="text-sm text-gray-500">Live LINE sticker ranking — top 500 charts for Japan, Thailand, Taiwan, Indonesia & the US, updated every hour straight from LINE Store.</h1>
           <p className="text-sm text-gray-400 mt-1">Click any sticker to explore its full rank history. Save your picks to ♥ Favorites to track their progress over time.</p>
         </div>
 
