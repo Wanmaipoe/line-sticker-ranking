@@ -20,6 +20,8 @@ export const metadata: Metadata = {
     languages: {
       en: '/',
       th: '/th',
+      ja: '/ja',
+      'zh-Hant': '/zh-hant',
       'x-default': '/',
     },
   },
@@ -153,6 +155,10 @@ export default function ThaiLandingPage() {
             <li>คลิกที่สติกเกอร์ เพื่อดูอันดับปัจจุบันของแต่ละประเทศ พร้อมกราฟย้อนหลัง 30 วัน</li>
             <li>กด ♥ Favorites เก็บไว้ แล้วกลับมาตามดูความเคลื่อนไหวได้ทุกวัน</li>
           </ol>
+          <p className="text-xs text-gray-400 mt-2">
+            หมายเหตุ: ระบบเก็บเฉพาะสติกเกอร์ที่เคยติด Top 500 ของแต่ละประเทศ
+            ถ้าเซ็ตของคุณยังไม่เคยติดชาร์ต จะยังค้นหาไม่เจอ
+          </p>
           <p className="text-sm text-gray-500 mt-3">
             หลายคนค้นหาวิธีเช็คยอดขายสติกเกอร์ไลน์ ตัวเลขยอดขายจริงดูได้ใน LINE Creators Market
             ของคุณเองเท่านั้น ส่วนเว็บนี้ช่วยให้เห็นว่าสติกเกอร์ของคุณขายดีแค่ไหนเมื่อเทียบกับทั้งตลาด
@@ -175,7 +181,11 @@ export default function ThaiLandingPage() {
 
         <footer className="border-t border-gray-100 mt-12 py-8 text-center text-xs text-gray-400 space-y-1">
           <p>
-            <a href="/" className="hover:text-green-600">English version</a>
+            <a href="/" className="hover:text-green-600">English</a>
+            {' · '}
+            <a href="/ja" lang="ja" className="hover:text-green-600">日本語</a>
+            {' · '}
+            <a href="/zh-hant" lang="zh-Hant" className="hover:text-green-600">繁體中文</a>
             {' · '}
             <a href="/country/th" className="hover:text-green-600">อันดับประเทศไทย</a>
             {' · '}

@@ -11,9 +11,11 @@ export default function Footer() {
       <p>Dev by: PorTowelMan</p>
       <p>Team : NumfarangIpluem, CEO Parn, WKAmbitious, KingMom</p>
       <p className="pt-1">
-        <a href="/th" lang="th" className="hover:text-green-600">
-          ภาษาไทย: อันดับสติกเกอร์ไลน์
-        </a>
+        <a href="/th" lang="th" className="hover:text-green-600">ภาษาไทย</a>
+        {' · '}
+        <a href="/ja" lang="ja" className="hover:text-green-600">日本語</a>
+        {' · '}
+        <a href="/zh-hant" lang="zh-Hant" className="hover:text-green-600">繁體中文</a>
       </p>
     </footer>
   );

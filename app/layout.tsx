@@ -28,16 +28,19 @@ export const metadata: Metadata = {
   title: { default: TITLE, template: "%s | LineStickerRanking" },
   description: DESCRIPTION,
   applicationName: SITE_NAME,
-  // hreflang cluster: the root + the Thai landing page (/th). Every member must list ALL
-  // members plus itself and x-default, and the maps must match app/th/page.tsx exactly —
-  // a one-sided or non-self-referencing cluster gets ignored by Google. Pages that define
-  // their own `alternates` (sticker/country/creator/creators) override this and stay
-  // hreflang-free on purpose: only the landing pages are localized.
+  // hreflang cluster: the root + the localized landing pages (/th, /ja, /zh-hant). Every
+  // member must list ALL members plus itself and x-default, and the maps must match the
+  // ones in app/th/page.tsx, app/ja/page.tsx and app/zh-hant/page.tsx exactly — a one-sided
+  // or non-self-referencing cluster gets ignored by Google. Pages that define their own
+  // `alternates` (sticker/country/creator/creators) override this and stay hreflang-free
+  // on purpose: only the landing pages are localized.
   alternates: {
     canonical: "/",
     languages: {
       en: "/",
       th: "/th",
+      ja: "/ja",
+      "zh-Hant": "/zh-hant",
       "x-default": "/",
     },
   },
@@ -61,7 +64,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     url: SITE_URL,
     locale: "en_US",
-    alternateLocale: ["th_TH", "ja_JP"],
+    alternateLocale: ["th_TH", "ja_JP", "zh_TW"],
     // og:image is provided by the file-convention app/opengraph-image.tsx (1200x630).
   },
   twitter: {
