@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFavorites } from '@/hooks/useFavorites';
 import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
+import Sparkline from '@/components/Sparkline';
 import Footer from '@/components/Footer';
 import AdPopup from '@/components/AdPopup';
 
@@ -32,6 +33,9 @@ interface Top5Item {
   id: string;
   name: string;
   image_url: string;
+  delta: number | null; // places moved up since the previous snapshot (negative = fell); null = no prior data
+  isNew: boolean; // new to the chart this snapshot
+  spark: number[]; // daily rank history (oldest→newest) for the inline sparkline
 }
 
 interface TrendItem {
@@ -98,9 +102,100 @@ function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number)
   };
 }
 
+// Relative "updated N ago" for the LIVE pill — the freshness IS the product, so it reads better
+// as "23 min ago" than an absolute timestamp. Computed at render (data is fetched once per load).
+function toRelative(isoString: string | null): string {
+  if (!isoString) return '';
+  const mins = Math.round((Date.now() - new Date(isoString).getTime()) / 60000);
+  if (!Number.isFinite(mins) || mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs > 1 ? 's' : ''} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+}
+
+const STICKER_CDN = (id: string) =>
+  `https://stickershop.line-scdn.net/stickershop/v1/product/${id}/LINEStorePC/main.png`;
+
+// Rank number, medal-colored for the podium. #1 gets a slightly larger gold treatment (Von
+// Restorff — one clear focal point per card).
+function RankBadge({ rank }: { rank: number }) {
+  const color =
+    rank === 1 ? 'text-amber-500' : rank === 2 ? 'text-gray-400' : rank === 3 ? 'text-orange-400' : 'text-gray-300';
+  return (
+    <span className={`font-bold flex-shrink-0 text-center tabular-nums ${rank === 1 ? 'text-base w-6' : 'text-sm w-6'} ${color}`}>
+      {rank}
+    </span>
+  );
+}
+
+// Rank-movement chip: ▲green up / ▼red down / NEW / – flat. The single most scannable signal on
+// a ranking board, so it's shown on every row (data comes from the previous hourly snapshot).
+function DeltaChip({ delta, isNew }: { delta: number | null; isNew: boolean }) {
+  if (isNew) {
+    return (
+      <span className="flex-shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-600">
+        <span aria-hidden>NEW</span>
+        <span className="sr-only">new entry</span>
+      </span>
+    );
+  }
+  if (delta == null) return <span className="flex-shrink-0 w-8" aria-hidden />;
+  if (delta > 0) {
+    return (
+      <span className="flex-shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-600 tabular-nums">
+        <span aria-hidden>▲{delta}</span>
+        <span className="sr-only">up {delta} places</span>
+      </span>
+    );
+  }
+  if (delta < 0) {
+    return (
+      <span className="flex-shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-500 tabular-nums">
+        <span aria-hidden>▼{Math.abs(delta)}</span>
+        <span className="sr-only">down {Math.abs(delta)} places</span>
+      </span>
+    );
+  }
+  return (
+    <span className="flex-shrink-0 text-[11px] text-gray-300 px-1.5">
+      <span aria-hidden>–</span>
+      <span className="sr-only">no change</span>
+    </span>
+  );
+}
+
+// Sticker artwork thumbnail. Larger than before (default 48px) — the art IS the product, so it
+// has to be recognizable at a glance. Same LINE CDN image, so bigger costs zero extra fetch.
+function Thumb({ id, name, image_url, size = 48 }: { id: string; name: string; image_url: string | null; size?: number }) {
+  return (
+    <div className="rounded-lg overflow-hidden bg-gray-50 flex-shrink-0" style={{ width: size, height: size }}>
+      <Image
+        src={image_url ?? STICKER_CDN(id)}
+        alt={name}
+        width={size}
+        height={size}
+        className="object-contain w-full h-full"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.visibility = 'hidden';
+        }}
+      />
+    </div>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { favorites, isFavorite, toggle, loaded: favLoaded } = useFavorites();
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Jump to the search box in creator mode — the hero's "Track your pack" CTA for creators.
+  function focusCreatorSearch() {
+    handleModeChange('creator');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => searchRef.current?.focus(), 300);
+  }
 
   // Search
   const [query, setQuery] = useState('');
@@ -202,6 +297,13 @@ export default function HomePage() {
 
   const showDropdown = query.length >= 2;
 
+  // Board-state number for the hero, derived entirely from the already-fetched /api/trending
+  // payload (zero extra DB reads): how many stickers jumped 30+ places this hour across JP/TH/TW.
+  const hotMoversCount =
+    trending?.countries
+      .filter((c) => HOME_COUNTRIES.includes(c.code))
+      .reduce((n, c) => n + c.trending.filter((t) => t.improvement >= 30).length, 0) ?? 0;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
@@ -242,6 +344,7 @@ export default function HomePage() {
               </div>
               <div className="relative flex-1">
                 <input
+                  ref={searchRef}
                   type="text"
                   value={query}
                   onChange={handleInput}
@@ -361,11 +464,49 @@ export default function HomePage() {
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-10">
 
-        {/* Tagline — a real <h1> so Google's snippet/title generation sees the exact
-            "LINE sticker ranking" phrase (Tailwind preflight keeps h1 visually identical to p). */}
-        <div className="text-center pt-2 pb-1">
-          <h1 className="text-sm text-gray-500">Live LINE sticker ranking — top 500 charts for Japan, Thailand & Taiwan, updated every hour straight from LINE Store.</h1>
-          <p className="text-sm text-gray-400 mt-1">Click any sticker to explore its full rank history. Save your picks to ♥ Favorites to track their progress over time.</p>
+        {/* Hero — the <h1> carries the "LINE sticker ranking" keyword for SEO AND is now the real
+            visual headline. The LIVE pill promotes the freshness (the whole product) that used to
+            be a 12px gray timestamp. */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5 sm:px-7 sm:py-6">
+          <div className="mb-3">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              {dashboard?.updatedAt ? `Live · updated ${toRelative(dashboard.updatedAt)}` : 'Live rankings'}
+            </span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
+            Live LINE sticker rankings — Japan, Thailand &amp; Taiwan
+          </h1>
+          <p className="text-sm text-gray-500 mt-1.5 max-w-2xl">
+            Top 500 charts refreshed every hour straight from LINE Store, with 30-day rank history and the biggest movers.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            <a
+              href="#top5"
+              className="text-sm font-medium bg-[#06c755] text-white px-4 py-2 rounded-xl hover:bg-[#05b34c] transition-colors"
+            >
+              Explore rankings
+            </a>
+            <button
+              onClick={focusCreatorSearch}
+              className="text-sm font-medium bg-white text-green-700 border border-green-200 px-4 py-2 rounded-xl hover:bg-green-50 transition-colors"
+            >
+              Track your pack
+            </button>
+            <span className="text-xs text-gray-400 sm:ml-auto w-full sm:w-auto">
+              1,500 live ranks · 3 countries
+              {hotMoversCount > 0 ? (
+                <>
+                  {' · '}
+                  <span aria-hidden>🔥 </span>
+                  {hotMoversCount} big movers this hour
+                </>
+              ) : ''}
+            </span>
+          </div>
         </div>
 
         {/* Favorites Panel */}
@@ -391,24 +532,24 @@ export default function HomePage() {
         )}
 
         {/* Top 5 Section */}
-        <section>
+        <section id="top5" className="scroll-mt-20">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-700 text-base">🏆 Top 5 Per Country Today</h2>
-            <span className="text-xs text-gray-400">Click a sticker to see full ranking history</span>
+            <h2 className="font-bold text-gray-700 text-base">🏆 Top 5 per country</h2>
+            <span className="text-xs text-gray-400 hidden sm:inline">Tap a sticker for its 30-day history</span>
           </div>
 
             {loadingDash && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="bg-white rounded-2xl p-4 animate-pulse h-52" />
+                  <div key={i} className="bg-white rounded-2xl p-4 animate-pulse h-72" />
                 ))}
               </div>
             )}
 
             {!loadingDash && !dashboard?.countries?.length && (
-              <div className="text-center py-16 text-gray-400">
-                <p className="text-4xl mb-3">📭</p>
-                <p className="text-sm">No data yet — wait for the cron job or run the seed script</p>
+              <div className="text-center py-16 text-gray-400 bg-white rounded-2xl border border-gray-100">
+                <p className="text-4xl mb-3">⏳</p>
+                <p className="text-sm">Rankings are updating right now. Check back in a few minutes.</p>
               </div>
             )}
 
@@ -418,54 +559,50 @@ export default function HomePage() {
                   key={country.code}
                   className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
                 >
-                  <div className="px-3 py-2.5 border-b border-gray-50 flex items-center gap-2">
+                  <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2">
                     <span className="text-xl">{country.flag}</span>
                     <span className="font-semibold text-sm text-gray-700">{country.name}</span>
+                    <span className="ml-auto text-[11px] uppercase tracking-wide text-gray-300 font-semibold">Top 5</span>
                   </div>
                   <div className="p-2 flex-1">
                     {country.top5.map((item) => (
-                      <Link
+                      <div
                         key={item.id}
-                        href={`/sticker/${item.id}`}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors text-left group"
+                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors group"
                       >
-                        <span
-                          className={`text-xs font-bold w-5 text-right flex-shrink-0 ${
-                            item.rank === 1
-                              ? 'text-yellow-500'
-                              : item.rank === 2
-                              ? 'text-gray-400'
-                              : item.rank === 3
-                              ? 'text-orange-400'
-                              : 'text-gray-300'
-                          }`}
+                        <Link href={`/sticker/${item.id}`} className="flex items-center gap-2.5 flex-1 min-w-0">
+                          <RankBadge rank={item.rank} />
+                          <Thumb id={item.id} name={item.name} image_url={item.image_url} size={48} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-gray-700 font-medium truncate group-hover:text-green-700 leading-tight">
+                              {item.name}
+                            </div>
+                            {item.spark.length >= 2 && (
+                              <div className="mt-1">
+                                <Sparkline ranks={item.spark} />
+                              </div>
+                            )}
+                          </div>
+                          <DeltaChip delta={item.delta} isNew={item.isNew} />
+                        </Link>
+                        <button
+                          onClick={() => toggle(item.id)}
+                          aria-label={isFavorite(item.id) ? 'Remove from favorites' : 'Add to favorites'}
+                          className="flex-shrink-0 text-lg leading-none px-1 transition-colors"
                         >
-                          #{item.rank}
-                        </span>
-                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
-                          <Image
-                            src={item.image_url ?? `https://stickershop.line-scdn.net/stickershop/v1/product/${item.id}/LINEStorePC/main.png`}
-                            alt={item.name}
-                            width={32}
-                            height={32}
-                            className="object-contain w-full h-full"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.visibility = 'hidden';
-                            }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-600 truncate group-hover:text-green-700 leading-tight">
-                          {item.name}
-                        </span>
-                      </Link>
+                          <span className={isFavorite(item.id) ? 'text-red-400' : 'text-gray-300 hover:text-red-400'}>
+                            {isFavorite(item.id) ? '♥' : '♡'}
+                          </span>
+                        </button>
+                      </div>
                     ))}
                   </div>
-                  <div className="px-3 py-2 border-t border-gray-50">
+                  <div className="px-3 py-2.5 border-t border-gray-50">
                     <a
                       href={`/country/${country.code}`}
-                      className="text-xs text-green-500 hover:text-green-600 font-medium w-full text-center block"
+                      className="text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg py-2 w-full text-center block transition-colors"
                     >
-                      More → Top 50
+                      View full ranking →
                     </a>
                   </div>
                 </div>
@@ -509,7 +646,7 @@ export default function HomePage() {
                 key={country.code}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
               >
-                <div className="px-3 py-2.5 border-b border-gray-50 flex items-center gap-2">
+                <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2">
                   <span className="text-xl">{country.flag}</span>
                   <span className="font-semibold text-sm text-gray-700">{country.name}</span>
                 </div>
@@ -518,27 +655,26 @@ export default function HomePage() {
                     <Link
                       key={item.id}
                       href={`/sticker/${item.id}`}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors text-left group"
+                      className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-green-50 transition-colors text-left group"
                     >
-                      <span className="text-xs font-bold text-green-500 w-9 text-right flex-shrink-0">
-                        ▲{item.improvement}
+                      <span className="flex-shrink-0 w-10 text-center text-[11px] font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-600 tabular-nums">
+                        <span aria-hidden>▲{item.improvement}</span>
+                        <span className="sr-only">up {item.improvement} places</span>
                       </span>
-                      <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
-                        <Image
-                          src={item.image_url ?? `https://stickershop.line-scdn.net/stickershop/v1/product/${item.id}/LINEStorePC/main.png`}
-                          alt={item.name}
-                          width={32}
-                          height={32}
-                          className="object-contain w-full h-full"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.visibility = 'hidden';
-                          }}
-                        />
+                      <Thumb id={item.id} name={item.name} image_url={item.image_url} size={44} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-gray-700 font-medium truncate group-hover:text-green-700 leading-tight">
+                          {item.name}
+                        </div>
+                        <div className="text-[11px] text-gray-400 leading-tight tabular-nums">
+                          now #{item.current_rank} · was #{item.old_rank}
+                        </div>
                       </div>
-                      <span className="text-xs text-gray-600 truncate group-hover:text-green-700 leading-tight flex-1">
-                        {item.name}
-                      </span>
-                      <span className="text-xs text-gray-300 flex-shrink-0">#{item.current_rank}</span>
+                      {item.improvement >= 30 && (
+                        <span className="flex-shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-500">
+                          <span aria-hidden>🔥 </span>Hot
+                        </span>
+                      )}
                     </Link>
                   ))}
                 </div>

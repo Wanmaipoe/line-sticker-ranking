@@ -13,6 +13,8 @@ export default function AdPopup() {
     } catch {
       /* sessionStorage unavailable */
     }
+    // Delay ~9s so the ad panel doesn't hijack the first impression / compete with the rankings
+    // on load. The floating "For Advertising" button is always available to open it sooner.
     const t = setTimeout(() => {
       setOpen(true);
       try {
@@ -20,7 +22,7 @@ export default function AdPopup() {
       } catch {
         /* ignore */
       }
-    }, 600);
+    }, 9000);
     return () => clearTimeout(t);
   }, []);
 
