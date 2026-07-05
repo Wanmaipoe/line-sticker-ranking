@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -22,6 +22,13 @@ const geistMono = Geist_Mono({
 const TITLE = "LINE Sticker Ranking — Live Top 500 Charts, Updated Hourly";
 const DESCRIPTION =
   "Live LINE sticker ranking updated every hour. Top 500 charts for Japan, Thailand & Taiwan, 30-day rank history and LINE creator rankings.";
+
+// This site is a single light theme. Declaring color-scheme: light keeps the browser from
+// applying its dark-mode user-agent styling to form controls (which made typed input text render
+// white-on-white for visitors whose OS/browser is in dark mode). Emits <meta name="color-scheme">.
+export const viewport: Viewport = {
+  colorScheme: "light",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
