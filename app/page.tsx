@@ -346,7 +346,7 @@ export default function HomePage() {
                       ? 'Search stickers e.g. Chiikawa, Tangkwa...'
                       : 'Search by creator name...'
                   }
-                  className="w-full px-4 py-2 rounded-xl border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm transition-colors"
+                  className="w-full px-4 py-2 rounded-xl border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm transition-colors bg-white text-gray-900 placeholder:text-gray-400"
                 />
               </div>
               <button

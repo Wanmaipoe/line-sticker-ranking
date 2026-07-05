@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
 :root {
+  /* This site is intentionally a single light theme. Declare color-scheme: light so the browser
+     renders form controls (input text, placeholders, scrollbars) in light mode even when the OS
+     is in dark mode — otherwise inputs inherited a near-white text color on their white
+     background, making what you typed invisible. */
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -10,13 +15,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
