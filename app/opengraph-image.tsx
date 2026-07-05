@@ -101,7 +101,7 @@ export default function OpengraphImage() {
               letterSpacing: 3,
             }}
           >
-            JAPAN · THAILAND · TAIWAN · INDONESIA · USA
+            JAPAN · THAILAND · TAIWAN
           </div>
 
           <div

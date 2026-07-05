@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const description = `LINE sticker packs by ${author}, with live rankings and 30-day rank history across Japan, Thailand, Taiwan, Indonesia & the US.`;
+  const description = `LINE sticker packs by ${author}, with live rankings and 30-day rank history across Japan, Thailand & Taiwan.`;
   return {
     title: `${author} — LINE Sticker Creator`,
     description,

@@ -64,7 +64,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const by = product.author ? ` by ${product.author}` : '';
   const description =
     product.description?.trim() ||
-    `Live LINE sticker ranking, price, and 30-day rank history for "${product.name}"${by} across Japan, Thailand, Taiwan, Indonesia & the US.`;
+    `Live LINE sticker ranking, price, and 30-day rank history for "${product.name}"${by} across Japan, Thailand & Taiwan.`;
 
   return {
     title: `${product.name} — LINE Sticker Ranking & Price`,

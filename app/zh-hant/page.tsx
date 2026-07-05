@@ -11,7 +11,7 @@ import { SITE_URL } from '@/lib/seo';
 
 const TITLE_ZH = 'LINE貼圖排行榜｜Top 500 每小時更新';
 const DESC_ZH =
-  '即時追蹤LINE熱門貼圖排行榜，完整Top 500每小時更新，附30天排名走勢圖與創作者排行。台灣、日本、泰國、印尼、美國5國一次看，免費查詢自己貼圖的排名。';
+  '即時追蹤LINE熱門貼圖排行榜，完整Top 500每小時更新，附30天排名走勢圖與創作者排行。台灣、日本、泰國3國一次看，免費查詢自己貼圖的排名。';
 
 export const metadata: Metadata = {
   title: TITLE_ZH,
@@ -58,8 +58,8 @@ const FEATURES = [
   },
   {
     icon: '🌏',
-    title: '5國排行一次看',
-    body: '台灣、日本、泰國、印尼、美國的排行榜都在這裡。想知道日本現在的熱門貼圖是哪些？切換國家馬上看。',
+    title: '3國排行一次看',
+    body: '台灣、日本、泰國的排行榜都在這裡。想知道日本現在的熱門貼圖是哪些？切換國家馬上看。',
   },
   {
     icon: '🏅',
@@ -101,7 +101,7 @@ export default function TraditionalChineseLandingPage() {
           </h1>
           <p className="text-gray-500 mt-3 max-w-2xl mx-auto">
             每小時記錄LINE STORE人氣創作者貼圖的Top 500排名，附30天排名走勢圖，
-            涵蓋台灣、日本、泰國、印尼、美國5個國家。
+            涵蓋台灣、日本、泰國3個國家。
           </p>
           <div className="flex flex-wrap justify-center gap-3 mt-6">
             <a

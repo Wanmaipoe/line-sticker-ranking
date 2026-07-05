@@ -11,6 +11,11 @@ import AdPopup from '@/components/AdPopup';
 
 type SearchMode = 'sticker' | 'creator';
 
+// Homepage shows only the three core markets. ID/US are still scraped hourly and keep their
+// own /country pages + rows on sticker detail pages — this is a display filter, not a data cut,
+// so restoring them here is a one-line change.
+const HOME_COUNTRIES = ['jp', 'th', 'tw'];
+
 interface Product {
   id: string;
   name: string;
@@ -359,7 +364,7 @@ export default function HomePage() {
         {/* Tagline — a real <h1> so Google's snippet/title generation sees the exact
             "LINE sticker ranking" phrase (Tailwind preflight keeps h1 visually identical to p). */}
         <div className="text-center pt-2 pb-1">
-          <h1 className="text-sm text-gray-500">Live LINE sticker ranking — top 500 charts for Japan, Thailand, Taiwan, Indonesia & the US, updated every hour straight from LINE Store.</h1>
+          <h1 className="text-sm text-gray-500">Live LINE sticker ranking — top 500 charts for Japan, Thailand & Taiwan, updated every hour straight from LINE Store.</h1>
           <p className="text-sm text-gray-400 mt-1">Click any sticker to explore its full rank history. Save your picks to ♥ Favorites to track their progress over time.</p>
         </div>
 
@@ -393,8 +398,8 @@ export default function HomePage() {
           </div>
 
             {loadingDash && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                {Array.from({ length: 5 }).map((_, i) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="bg-white rounded-2xl p-4 animate-pulse h-52" />
                 ))}
               </div>
@@ -407,8 +412,8 @@ export default function HomePage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {dashboard?.countries.map((country) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {dashboard?.countries.filter((c) => HOME_COUNTRIES.includes(c.code)).map((country) => (
                 <div
                   key={country.code}
                   className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
@@ -483,8 +488,8 @@ export default function HomePage() {
           </div>
 
           {loadingTrend && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {Array.from({ length: 5 }).map((_, i) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl p-4 animate-pulse h-52" />
               ))}
             </div>
@@ -498,8 +503,8 @@ export default function HomePage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {trending?.countries.map((country) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {trending?.countries.filter((c) => HOME_COUNTRIES.includes(c.code)).map((country) => (
               <div
                 key={country.code}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"

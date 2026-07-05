@@ -10,9 +10,9 @@ import { SITE_URL } from '@/lib/seo';
 // hreflang cluster member — the alternates.languages map below must stay identical to the
 // maps in app/layout.tsx, app/th/page.tsx and app/zh-hant/page.tsx.
 
-const TITLE_JA = 'LINEスタンプ人気ランキング｜毎時更新・5カ国対応';
+const TITLE_JA = 'LINEスタンプ人気ランキング｜毎時更新・日本/タイ/台湾';
 const DESC_JA =
-  'LINEスタンプの人気ランキングTop500を毎時間自動更新。過去30日の順位グラフ、クリエイターランキング、日本・タイ・台湾・インドネシア・米国の5カ国比較に対応。自分のスタンプの順位検索も無料。';
+  'LINEスタンプの人気ランキングTop500を毎時間自動更新。過去30日の順位グラフ、クリエイターランキング、日本・タイ・台湾の3カ国比較に対応。自分のスタンプの順位検索も無料。';
 
 export const metadata: Metadata = {
   title: TITLE_JA,
@@ -59,8 +59,8 @@ const FEATURES = [
   },
   {
     icon: '🌏',
-    title: '5カ国を横断比較',
-    body: '日本・タイ・台湾・インドネシア・米国のランキングを一つのサイトで。日本のスタンプが海外でどれだけ人気があるかも分かります。',
+    title: '3カ国を横断比較',
+    body: '日本・タイ・台湾のランキングを一つのサイトで。日本のスタンプが海外でどれだけ人気があるかも分かります。',
   },
   {
     icon: '🏅',
@@ -76,7 +76,7 @@ const FAQ = [
   },
   {
     q: 'LINE STOREのランキングと何が違いますか？',
-    a: 'LINE STOREで見られるのは「今の順位」だけですが、このサイトは過去30日分の履歴を保存しているので、順位の推移がグラフで分かります。さらに5カ国のランキングを横断して比較できます。',
+    a: 'LINE STOREで見られるのは「今の順位」だけですが、このサイトは過去30日分の履歴を保存しているので、順位の推移がグラフで分かります。さらに日本・タイ・台湾のランキングを横断して比較できます。',
   },
   {
     q: '無料で使えますか？',
@@ -102,7 +102,7 @@ export default function JapaneseLandingPage() {
           </h1>
           <p className="text-gray-500 mt-3 max-w-2xl mx-auto">
             LINE STOREのクリエイターズスタンプ上位500位を毎時間記録。過去30日間の順位グラフ付き。
-            日本だけでなく、タイ・台湾・インドネシア・米国のランキングも見られます。
+            日本だけでなく、タイ・台湾のランキングも見られます。
           </p>
           <div className="flex flex-wrap justify-center gap-3 mt-6">
             <a
@@ -121,7 +121,7 @@ export default function JapaneseLandingPage() {
               href="/"
               className="bg-white text-gray-600 border border-gray-200 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-100 transition-colors"
             >
-              🌏 全5カ国を見る
+              🌏 3カ国まとめて見る
             </a>
           </div>
         </div>
