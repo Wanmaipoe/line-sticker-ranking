@@ -28,7 +28,19 @@ export const metadata: Metadata = {
   title: { default: TITLE, template: "%s | LineStickerRanking" },
   description: DESCRIPTION,
   applicationName: SITE_NAME,
-  alternates: { canonical: "/" },
+  // hreflang cluster: the root + the Thai landing page (/th). Every member must list ALL
+  // members plus itself and x-default, and the maps must match app/th/page.tsx exactly —
+  // a one-sided or non-self-referencing cluster gets ignored by Google. Pages that define
+  // their own `alternates` (sticker/country/creator/creators) override this and stay
+  // hreflang-free on purpose: only the landing pages are localized.
+  alternates: {
+    canonical: "/",
+    languages: {
+      en: "/",
+      th: "/th",
+      "x-default": "/",
+    },
+  },
   keywords: [
     "LINE sticker",
     "LINE sticker ranking",

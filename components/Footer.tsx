@@ -10,6 +10,11 @@ export default function Footer() {
       </p>
       <p>Dev by: PorTowelMan</p>
       <p>Team : NumfarangIpluem, CEO Parn, WKAmbitious, KingMom</p>
+      <p className="pt-1">
+        <a href="/th" lang="th" className="hover:text-green-600">
+          ภาษาไทย: อันดับสติกเกอร์ไลน์
+        </a>
+      </p>
     </footer>
   );
 }

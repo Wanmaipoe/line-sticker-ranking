@@ -25,7 +25,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { code } = await params;
   const cc = code.toLowerCase();
   if (!isFeaturedCountry(cc)) {
-    return { title: 'Country not found', robots: { index: false, follow: false } };
+    // Self-canonical so this branch doesn't inherit the layout's canonical="/" + hreflang.
+    return {
+      title: 'Country not found',
+      robots: { index: false, follow: false },
+      alternates: { canonical: `/country/${cc}` },
+    };
   }
   const info = COUNTRY_MAP[cc];
   const name = info?.name ?? cc.toUpperCase();

@@ -47,10 +47,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     product = await getProduct(id);
   } catch {
     // DB unreadable — generic title, not noindex, so a transient outage doesn't drop the page.
-    return { title: 'LINE Sticker Ranking & Price' };
+    // Self-canonical is required here: without page-level `alternates` this branch would
+    // inherit the root layout's canonical="/" + hreflang cluster, telling Google every
+    // sticker page is a duplicate of the homepage during an outage.
+    return { title: 'LINE Sticker Ranking & Price', alternates: { canonical: `/sticker/${id}` } };
   }
   if (!product) {
-    return { title: 'Sticker not found', robots: { index: false, follow: false } };
+    return {
+      title: 'Sticker not found',
+      robots: { index: false, follow: false },
+      alternates: { canonical: `/sticker/${id}` },
+    };
   }
 
   const img = product.image_url ?? stickerImage(id);
