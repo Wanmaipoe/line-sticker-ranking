@@ -37,6 +37,20 @@ const queries = [
           ORDER BY product_id ASC, snapshot_date ASC, snapshot_hour ASC`,
     args: ['a', 'b', 'c', 'd', 'e', cc, '-7'],
   },
+  {
+    label: 'trending / movers (two-snapshot join, LIMIT 5)',
+    sql: `EXPLAIN QUERY PLAN
+          SELECT p.id, p.name, p.image_url, newr.rank, oldr.rank, (oldr.rank - newr.rank) AS improvement
+          FROM rankings newr
+          JOIN rankings oldr
+            ON oldr.product_id = newr.product_id AND oldr.country = newr.country
+            AND oldr.snapshot_date = ? AND oldr.snapshot_hour = ?
+          JOIN products p ON p.id = newr.product_id
+          WHERE newr.country = ? AND newr.snapshot_date = ? AND newr.snapshot_hour = ?
+            AND oldr.rank > newr.rank
+          ORDER BY improvement DESC LIMIT 5`,
+    args: ['2026-07-04', 15, cc, '2026-07-05', 16],
+  },
 ];
 
 for (const q of queries) {

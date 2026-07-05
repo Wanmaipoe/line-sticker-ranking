@@ -97,11 +97,15 @@ export default async function CountryPage({ params }: Props) {
     '@type': 'CollectionPage',
     name: `Top LINE Stickers in ${countryName}`,
     url: `${SITE_URL}/country/${cc}`,
+    // Full top-50 ItemList (data is already fetched server-side, so listing all 50 costs zero extra
+    // reads and gives AI answer engines the complete ranking with true rank positions).
     mainEntity: {
       '@type': 'ItemList',
-      itemListElement: items.slice(0, 10).map((it, i) => ({
+      itemListOrder: 'https://schema.org/ItemListOrderAscending',
+      numberOfItems: items.length,
+      itemListElement: items.map((it) => ({
         '@type': 'ListItem',
-        position: i + 1,
+        position: it.rank,
         url: `${SITE_URL}/sticker/${it.id}`,
         name: it.name,
       })),
