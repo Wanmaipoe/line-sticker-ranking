@@ -16,6 +16,15 @@ type SearchMode = 'sticker' | 'creator';
 // so restoring them here is a one-line change.
 const HOME_COUNTRIES = ['jp', 'th', 'tw'];
 
+// Quick-jump chips shown at the top of the ranking section (where "Explore rankings" scrolls to).
+// Each links to that country's full Top 50 page. Hardcoded so they render instantly, independent
+// of the dashboard fetch.
+const HOME_COUNTRY_CHIPS = [
+  { code: 'jp', name: 'Japan', flag: '🇯🇵' },
+  { code: 'th', name: 'Thailand', flag: '🇹🇭' },
+  { code: 'tw', name: 'Taiwan', flag: '🇹🇼' },
+];
+
 interface Product {
   id: string;
   name: string;
@@ -482,6 +491,21 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-gray-700 text-base">🏆 Top 5 per country</h2>
             <span className="text-xs text-gray-400 hidden sm:inline">Tap a sticker for its 30-day history</span>
+          </div>
+
+          {/* Quick jump to each country's full Top 50 */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {HOME_COUNTRY_CHIPS.map((c) => (
+              <a
+                key={c.code}
+                href={`/country/${c.code}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700 hover:bg-green-50 transition-colors"
+              >
+                <span aria-hidden>{c.flag}</span>
+                {c.name}
+                <span className="text-[11px] text-gray-400">Top 50 →</span>
+              </a>
+            ))}
           </div>
 
             {loadingDash && (
