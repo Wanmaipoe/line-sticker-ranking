@@ -5,7 +5,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFavorites } from '@/hooks/useFavorites';
-import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
 import Sparkline from '@/components/Sparkline';
 import Footer from '@/components/Footer';
 import AdPopup from '@/components/AdPopup';
@@ -118,16 +117,25 @@ function toRelative(isoString: string | null): string {
 const STICKER_CDN = (id: string) =>
   `https://stickershop.line-scdn.net/stickershop/v1/product/${id}/LINEStorePC/main.png`;
 
-// Rank number, medal-colored for the podium. #1 gets a slightly larger gold treatment (Von
-// Restorff — one clear focal point per card).
+// Rank badge. The podium (1/2/3) renders as a real gold/silver/bronze medal disc so the top three
+// pop (Von Restorff — one clear focal point per card); 4/5 stay as a plain muted number.
+const MEDAL: Record<number, string> = {
+  1: 'bg-[#f5c518] text-yellow-900 ring-1 ring-[#d4a800]', // gold
+  2: 'bg-[#c9ccd1] text-gray-700 ring-1 ring-[#a9adb3]', // silver
+  3: 'bg-[#cd7f32] text-white ring-1 ring-[#a4641f]', // bronze
+};
 function RankBadge({ rank }: { rank: number }) {
-  const color =
-    rank === 1 ? 'text-amber-500' : rank === 2 ? 'text-gray-400' : rank === 3 ? 'text-orange-400' : 'text-gray-300';
-  return (
-    <span className={`font-bold flex-shrink-0 text-center tabular-nums ${rank === 1 ? 'text-base w-6' : 'text-sm w-6'} ${color}`}>
-      {rank}
-    </span>
-  );
+  if (rank <= 3) {
+    return (
+      <span
+        className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${MEDAL[rank]}`}
+        title={`Rank ${rank}`}
+      >
+        {rank}
+      </span>
+    );
+  }
+  return <span className="flex-shrink-0 w-6 text-center text-sm font-bold text-gray-300 tabular-nums">{rank}</span>;
 }
 
 // Rank-movement chip: ▲green up / ▼red down / NEW / – flat. The single most scannable signal on
@@ -187,7 +195,7 @@ function Thumb({ id, name, image_url, size = 48 }: { id: string; name: string; i
 
 export default function HomePage() {
   const router = useRouter();
-  const { favorites, isFavorite, toggle, loaded: favLoaded } = useFavorites();
+  const { favorites, isFavorite, toggle } = useFavorites();
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Jump to the search box in creator mode — the hero's "Track your pack" CTA for creators.
@@ -204,20 +212,11 @@ export default function HomePage() {
   const [creatorResults, setCreatorResults] = useState<CreatorResult[]>([]);
   const [searching, setSearching] = useState(false);
 
-  // Favorites panel toggle — auto-open on first load if the user has any saved
-  const [showFavorites, setShowFavorites] = useState(false);
-  const [favAutoInit, setFavAutoInit] = useState(false);
-
   // Dashboard / trending
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [trending, setTrending] = useState<TrendingData | null>(null);
   const [loadingDash, setLoadingDash] = useState(true);
   const [loadingTrend, setLoadingTrend] = useState(true);
-
-  // Favorites data
-  const [favoritesData, setFavoritesData] = useState<ProductWithRankings[]>([]);
-  const [loadingFav, setLoadingFav] = useState(false);
-  const favoritesKey = favorites.join(',');
 
   useEffect(() => {
     fetch('/api/dashboard')
@@ -232,29 +231,6 @@ export default function HomePage() {
       .catch(() => setTrending(null))
       .finally(() => setLoadingTrend(false));
   }, []);
-
-  // Once favorites load from storage, open the panel automatically if there are any.
-  // Runs once so it never fights the user's manual toggle afterward.
-  useEffect(() => {
-    if (favLoaded && !favAutoInit) {
-      setFavAutoInit(true);
-      if (favorites.length > 0) setShowFavorites(true);
-    }
-  }, [favLoaded, favAutoInit, favorites.length]);
-
-  useEffect(() => {
-    if (!showFavorites || !favLoaded) return;
-    if (!favoritesKey) {
-      setFavoritesData([]);
-      return;
-    }
-    setLoadingFav(true);
-    fetch(`/api/favorites?ids=${favoritesKey}`)
-      .then((r) => r.json())
-      .then((d) => setFavoritesData(d.products ?? []))
-      .catch(() => setFavoritesData([]))
-      .finally(() => setLoadingFav(false));
-  }, [showFavorites, favoritesKey, favLoaded]);
 
   const doSearch = useCallback(async (q: string, mode: SearchMode) => {
     if (q.length < 2) {
@@ -440,25 +416,18 @@ export default function HomePage() {
 
         {/* Favorites toggle */}
         <div className="max-w-6xl mx-auto px-4 pb-0 flex items-center gap-2 border-t border-gray-50 py-1.5">
-          <button
-            onClick={() => setShowFavorites((v) => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              showFavorites
-                ? 'bg-red-50 text-red-400 border border-red-200'
-                : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200'
-            }`}
+          <a
+            href="/favorites"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-400 border border-gray-200 transition-colors"
           >
             ♥ Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}
-          </button>
+          </a>
           <a
             href="/creators"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
           >
             🏅 Top Creators
           </a>
-          {showFavorites && (
-            <span className="text-xs text-gray-400 hidden sm:inline">— click ♥ on any sticker detail page to save</span>
-          )}
         </div>
       </header>
 
@@ -478,7 +447,7 @@ export default function HomePage() {
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">
-            Live LINE sticker rankings — Japan, Thailand &amp; Taiwan
+            Live LINE sticker rankings — Japan, Thailand and Taiwan
           </h1>
           <p className="text-sm text-gray-500 mt-1.5 max-w-2xl">
             Top 500 charts refreshed every hour straight from LINE Store, with 30-day rank history and the biggest movers.
@@ -508,28 +477,6 @@ export default function HomePage() {
             </span>
           </div>
         </div>
-
-        {/* Favorites Panel */}
-        {showFavorites && (
-          <section className="bg-white rounded-2xl shadow-sm border border-red-100 p-5">
-            <h2 className="font-bold text-gray-700 text-base mb-4">♥ Saved Favorites</h2>
-            {!favLoaded || loadingFav ? (
-              <div className="text-center py-8 text-gray-400 text-sm">Loading...</div>
-            ) : favorites.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                <p className="text-3xl mb-2">♡</p>
-                <p className="text-sm">No favorites yet — open a sticker and tap ♥ to save it here</p>
-              </div>
-            ) : (
-              <StickersRankTable
-                products={favoritesData}
-                isFavorite={isFavorite}
-                onToggleFavorite={toggle}
-                showAuthorLink
-              />
-            )}
-          </section>
-        )}
 
         {/* Top 5 Section */}
         <section id="top5" className="scroll-mt-20">
@@ -578,8 +525,9 @@ export default function HomePage() {
                               {item.name}
                             </div>
                             {item.spark.length >= 2 && (
-                              <div className="mt-1">
+                              <div className="mt-1 flex items-center gap-1.5">
                                 <Sparkline ranks={item.spark} />
+                                <span className="text-[11px] text-gray-400 flex-shrink-0 leading-none">past 7 days</span>
                               </div>
                             )}
                           </div>
