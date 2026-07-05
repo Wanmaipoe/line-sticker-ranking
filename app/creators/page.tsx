@@ -1,8 +1,28 @@
 import { getDb, getCreatorLeaderboards } from '@/lib/db';
 import CreatorsLeaderboard from './CreatorsLeaderboard';
 import BackButton from '@/components/BackButton';
-import { SITE_URL } from '@/lib/seo';
+import JsonLd from '@/components/JsonLd';
+import { SITE_URL, SITE_NAME } from '@/lib/seo';
 import type { Metadata } from 'next';
+
+const CREATORS_JSONLD = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'LINE Creator Ranking — Top Sticker Creators',
+    url: `${SITE_URL}/creators`,
+    description:
+      'Which LINE sticker creators have the most packs in the top 100 charts in Japan, Thailand and Taiwan, updated hourly.',
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: SITE_NAME, item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: 'Top Creators', item: `${SITE_URL}/creators` },
+    ],
+  },
+];
 
 // Cached (ISR) for 30 min instead of force-dynamic so repeated crawls don't re-run the heavy
 // leaderboard aggregation query each time; the underlying data only changes hourly.
@@ -33,6 +53,7 @@ export default async function CreatorsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <JsonLd data={CREATORS_JSONLD} />
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3">
           <BackButton />

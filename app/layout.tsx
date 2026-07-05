@@ -111,6 +111,11 @@ const SITE_JSONLD = [
     name: SITE_NAME,
     url: SITE_URL,
     logo: `${SITE_URL}/icon.png`,
+    email: "linestickerranking@gmail.com",
+    foundingDate: "2026",
+    description:
+      "Independent tracker of LINE sticker popularity rankings for Japan, Thailand and Taiwan, updated hourly from LINE Store.",
+    knowsAbout: ["LINE stickers", "LINE Store rankings", "LINE sticker creators"],
   },
 ];
 

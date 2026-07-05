@@ -1,7 +1,7 @@
 import { getDb, getProductsByAuthor, getProductsWithRankings } from '@/lib/db';
 import CreatorClient from './CreatorClient';
 import JsonLd from '@/components/JsonLd';
-import { SITE_URL } from '@/lib/seo';
+import { SITE_URL, SITE_NAME } from '@/lib/seo';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import type { Metadata } from 'next';
@@ -102,14 +102,36 @@ export default async function CreatorPage({ params }: Props) {
     rankings: rankings[p.id] ?? Object.fromEntries(FEATURED.map((cc) => [cc, null])),
   }));
 
+  const creatorUrl = `${SITE_URL}/creator/${encodeURIComponent(author)}`;
   const jsonLd = products.length
-    ? {
-        '@context': 'https://schema.org',
-        '@type': 'CollectionPage',
-        name: `${author} — LINE Stickers`,
-        url: `${SITE_URL}/creator/${encodeURIComponent(author)}`,
-        about: { '@type': 'Person', name: author },
-      }
+    ? [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: `${author} — LINE Stickers`,
+          url: creatorUrl,
+          about: { '@type': 'Person', name: author },
+          mainEntity: {
+            '@type': 'ItemList',
+            numberOfItems: withRankings.length,
+            itemListElement: withRankings.map((p, i) => ({
+              '@type': 'ListItem',
+              position: i + 1,
+              url: `${SITE_URL}/sticker/${p.id}`,
+              name: p.name,
+            })),
+          },
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: SITE_NAME, item: SITE_URL },
+            { '@type': 'ListItem', position: 2, name: 'Top Creators', item: `${SITE_URL}/creators` },
+            { '@type': 'ListItem', position: 3, name: author, item: creatorUrl },
+          ],
+        },
+      ]
     : null;
 
   return (

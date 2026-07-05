@@ -1,6 +1,11 @@
 export default function Footer() {
   return (
     <footer className="border-t border-gray-100 mt-12 py-8 text-center text-xs text-gray-400 space-y-1">
+      <p className="pb-1">
+        <a href="/about" className="hover:text-green-600">About &amp; methodology</a>
+        {' · '}
+        <a href="/creators" className="hover:text-green-600">Top creators</a>
+      </p>
       <p className="font-semibold text-gray-500">11tumarai Company</p>
       <p>
         Company email:{' '}

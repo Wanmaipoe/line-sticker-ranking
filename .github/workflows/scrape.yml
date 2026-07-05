@@ -29,3 +29,7 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           BATCH: '400'
         run: node scripts/backfill-authors.mjs
+      # Tell Bing/IndexNow the hourly pages changed so they re-crawl promptly (feeds ChatGPT /
+      # Copilot / Perplexity, which source from Bing). No DB reads — just an HTTP POST. Non-fatal.
+      - name: Ping IndexNow
+        run: node scripts/ping-indexnow.mjs

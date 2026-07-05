@@ -188,7 +188,21 @@ export default function JapaneseLandingPage() {
           <p className="font-semibold text-gray-500">11tumarai Company</p>
         </footer>
       </div>
-      <JsonLd data={PAGE_JSONLD} />
+      <JsonLd
+        data={[
+          PAGE_JSONLD,
+          {
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            inLanguage: 'ja',
+            mainEntity: FAQ.map((f) => ({
+              '@type': 'Question',
+              name: f.q,
+              acceptedAnswer: { '@type': 'Answer', text: f.a },
+            })),
+          },
+        ]}
+      />
     </div>
   );
 }

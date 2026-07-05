@@ -1,0 +1,18 @@
+# LineStickerRanking
+
+> Live LINE sticker popularity rankings for Japan, Thailand and Taiwan — the top 500 stickers per country, updated every hour from LINE Store, with 30-day rank history, the biggest hourly movers, and a creator leaderboard. Independent, not affiliated with LINE.
+
+## Key pages
+- [Home — live LINE sticker rankings](https://linestickerranking.com/): top 5 per country, biggest movers this hour, search, and a Q&A about the rankings.
+- [Top LINE stickers in Japan](https://linestickerranking.com/country/jp): full top 50 for Japan, updated hourly.
+- [Top LINE stickers in Thailand](https://linestickerranking.com/country/th): full top 50 for Thailand, updated hourly.
+- [Top LINE stickers in Taiwan](https://linestickerranking.com/country/tw): full top 50 for Taiwan, updated hourly.
+- [LINE creator ranking](https://linestickerranking.com/creators): the creators with the most sticker packs in the charts.
+- [About & methodology](https://linestickerranking.com/about): where the data comes from, update frequency, coverage, and our independence from LINE.
+
+## Data
+- Source: LINE Store public creator-sticker popularity charts (store.line.me), captured once per hour per country.
+- Coverage: Japan, Thailand, Taiwan (Indonesia and the United States are also tracked).
+- History: 30-day rank history for every sticker.
+- Update frequency: hourly.
+- Operator: 11tumarai Company (independent; not affiliated with LINE / LY Corporation).
