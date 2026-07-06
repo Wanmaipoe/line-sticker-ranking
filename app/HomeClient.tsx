@@ -339,7 +339,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
     { q: 'What are the top LINE stickers right now?', a: topAnswer },
     {
       q: 'How often are the LINE sticker rankings updated?',
-      a: 'Every hour. Rankings are scraped directly from LINE Store’s official charts, and every sticker keeps a 30-day rank history so you can see how it moved.',
+      a: 'Every hour. We get the rankings directly from LINE Store’s official charts, and every sticker keeps a 30-day rank history so you can see how it moved.',
     },
     {
       q: 'Which countries does LineStickerRanking cover?',
