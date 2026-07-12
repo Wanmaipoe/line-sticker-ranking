@@ -24,6 +24,9 @@ interface Props {
   isFavorite?: (id: string) => boolean;
   onToggleFavorite?: (id: string) => void;
   showAuthorLink?: boolean;
+  // Country code to sort by on first render (ascending, best rank first). Unranked (—) sink to the
+  // bottom. The user can still click any column to re-sort. Omit for the original server order.
+  defaultSortKey?: string;
 }
 
 function RankBadge({ rank }: { rank: number | null }) {
@@ -45,9 +48,11 @@ function RankBadge({ rank }: { rank: number | null }) {
   );
 }
 
-export default function StickersRankTable({ products, isFavorite, onToggleFavorite, showAuthorLink }: Props) {
+export default function StickersRankTable({ products, isFavorite, onToggleFavorite, showAuthorLink, defaultSortKey }: Props) {
   const router = useRouter();
-  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(
+    defaultSortKey ? { key: defaultSortKey, dir: 'asc' } : null
+  );
 
   function toggleSort(cc: string) {
     setSort((prev) => (prev?.key === cc ? { key: cc, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key: cc, dir: 'asc' }));

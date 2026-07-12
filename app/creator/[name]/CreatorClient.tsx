@@ -62,6 +62,7 @@ export default function CreatorClient({ author, products: initialProducts }: Pro
           products={products}
           isFavorite={isFavorite}
           onToggleFavorite={toggle}
+          defaultSortKey="th"
         />
       </div>
     </div>
