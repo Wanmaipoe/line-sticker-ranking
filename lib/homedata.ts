@@ -177,26 +177,48 @@ export interface TrendingCountry {
   to: number | null;
 }
 
+// Start of the current Bangkok day, expressed as the UTC (snapshot_date, snapshot_hour) key. Tied
+// to the latest snapshot's BKK calendar day (not wall-clock) so a small scrape lag can't shift the
+// window. BKK midnight = 17:00 UTC the previous day.
+function bkkDayStartKey(curUtcMs: number): { date: string; hour: number } {
+  const bkk = new Date(curUtcMs + 7 * 3_600_000);
+  const midnightUtc = new Date(Date.UTC(bkk.getUTCFullYear(), bkk.getUTCMonth(), bkk.getUTCDate()) - 7 * 3_600_000);
+  return { date: midnightUtc.toISOString().slice(0, 10), hour: midnightUtc.getUTCHours() };
+}
+
+// The Movers board compares each sticker's CURRENT rank against its rank at the START OF TODAY
+// (Bangkok time) — a full-day "what's climbing" view, far less noisy than an hour-to-hour delta.
+// Right after BKK midnight, when today has only one snapshot, it falls back to the previous
+// snapshot so the board is never empty.
 export async function getTrendingData(client: Client): Promise<{ countries: TrendingCountry[] }> {
   const countries = await Promise.all(
     FEATURED_COUNTRIES.map(async (code) => {
       const info = COUNTRY_MAP[code];
 
+      // Latest + previous snapshot (previous is the just-after-midnight fallback baseline).
       const snaps = await client.execute({
         sql: `SELECT DISTINCT snapshot_date, snapshot_hour
               FROM rankings WHERE country = ?
               ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 2`,
         args: [code],
       });
-      if (snaps.rows.length < 2) return { ...info, code, trending: [], from: null, to: null };
-
       const cur = snaps.rows[0];
-      const prev = snaps.rows[1];
-      const gapHours =
-        (snapTime(cur.snapshot_date as string, cur.snapshot_hour as number) -
-          snapTime(prev.snapshot_date as string, prev.snapshot_hour as number)) /
-        3_600_000;
-      if (gapHours > MAX_GAP_HOURS) return { ...info, code, trending: [], from: null, to: null };
+      if (!cur) return { ...info, code, trending: [], from: null, to: null };
+      const prev = snaps.rows[1] ?? null;
+
+      // Earliest snapshot on/after the start of the current BKK day. Index seek via
+      // idx_rankings_country_date_hour (row-value lower bound + LIMIT 1).
+      const dayStart = bkkDayStartKey(snapTime(cur.snapshot_date as string, cur.snapshot_hour as number));
+      const baseRes = await client.execute({
+        sql: `SELECT snapshot_date, snapshot_hour FROM rankings
+              WHERE country = ? AND (snapshot_date, snapshot_hour) >= (?, ?)
+              ORDER BY snapshot_date ASC, snapshot_hour ASC LIMIT 1`,
+        args: [code, dayStart.date, dayStart.hour],
+      });
+      let baseline: (typeof baseRes.rows)[number] | null = baseRes.rows[0] ?? null;
+      const isCur = baseline && baseline.snapshot_date === cur.snapshot_date && baseline.snapshot_hour === cur.snapshot_hour;
+      if (!baseline || isCur) baseline = prev; // only one snapshot so far today → use the previous
+      if (!baseline) return { ...info, code, trending: [], from: null, to: null };
 
       const trendResult = await client.execute({
         sql: `SELECT p.id, p.name, p.image_url,
@@ -211,7 +233,7 @@ export async function getTrendingData(client: Client): Promise<{ countries: Tren
               WHERE newr.country = ? AND newr.snapshot_date = ? AND newr.snapshot_hour = ?
                 AND oldr.rank > newr.rank
               ORDER BY improvement DESC LIMIT 5`,
-        args: [prev.snapshot_date, prev.snapshot_hour, code, cur.snapshot_date, cur.snapshot_hour],
+        args: [baseline.snapshot_date, baseline.snapshot_hour, code, cur.snapshot_date, cur.snapshot_hour],
       });
 
       const trending = trendResult.rows.map((row) => ({
@@ -227,7 +249,7 @@ export async function getTrendingData(client: Client): Promise<{ countries: Tren
         ...info,
         code,
         trending,
-        from: snapTime(prev.snapshot_date as string, prev.snapshot_hour as number),
+        from: snapTime(baseline.snapshot_date as string, baseline.snapshot_hour as number),
         to: snapTime(cur.snapshot_date as string, cur.snapshot_hour as number),
       };
     })

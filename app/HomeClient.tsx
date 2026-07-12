@@ -18,6 +18,10 @@ type SearchMode = 'sticker' | 'creator';
 // so restoring them here is a one-line change.
 const HOME_COUNTRIES = ['jp', 'th', 'tw'];
 
+// A "🔥 Hot" mover is a big jump. The Movers board now spans the whole day (not one hour), so
+// jumps are larger — a day-scale threshold keeps the badge meaningful instead of tagging everything.
+const HOT_JUMP = 100;
+
 // Country options in the "Explore rankings" picker modal. Each links to that country's full
 // Top 50 page (/country/[code]).
 const HOME_COUNTRY_CHIPS = [
@@ -314,11 +318,11 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
   const showDropdown = query.length >= 2;
 
   // Board-state number for the hero, derived entirely from the already-fetched /api/trending
-  // payload (zero extra DB reads): how many stickers jumped 30+ places this hour across JP/TH/TW.
+  // payload (zero extra DB reads): how many stickers jumped HOT_JUMP+ places today across JP/TH/TW.
   const hotMoversCount =
     trending?.countries
       .filter((c) => HOME_COUNTRIES.includes(c.code))
-      .reduce((n, c) => n + c.trending.filter((t) => t.improvement >= 30).length, 0) ?? 0;
+      .reduce((n, c) => n + c.trending.filter((t) => t.improvement >= HOT_JUMP).length, 0) ?? 0;
 
   // ----- Server-rendered answer content + structured data (AI/GEO SEO) -----
   // All derived from `dashboard`, which is seeded from the server render, so this whole block is in
@@ -581,7 +585,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
                 <>
                   {' · '}
                   <span aria-hidden>🔥 </span>
-                  {hotMoversCount} big movers this hour
+                  {hotMoversCount} big movers today
                 </>
               ) : ''}
             </span>
@@ -671,7 +675,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
         {/* Movers Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-700 text-base">🔥 Movers — biggest jumps since the last update</h2>
+            <h2 className="font-bold text-gray-700 text-base">🔥 Movers — biggest jumps today</h2>
             {(() => {
               const w = trending?.countries.find((c) => c.to);
               return w ? (
@@ -693,7 +697,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
           {!loadingTrend && !trending?.countries?.length && (
             <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-100">
               <p className="text-3xl mb-2">⏱️</p>
-              <p className="text-sm">Collecting hourly data — movers appear once two consecutive hourly snapshots exist.</p>
+              <p className="text-sm">Today&apos;s movers appear as the day&apos;s hourly snapshots build up.</p>
               <p className="text-xs text-gray-300 mt-1">Rankings refresh every hour around :30 (BKK).</p>
             </div>
           )}
@@ -728,7 +732,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
                           now #{item.current_rank} · was #{item.old_rank}
                         </div>
                       </div>
-                      {item.improvement >= 30 && (
+                      {item.improvement >= HOT_JUMP && (
                         <span className="flex-shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-500">
                           <span aria-hidden>🔥 </span>Hot
                         </span>
