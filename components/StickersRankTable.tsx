@@ -29,22 +29,34 @@ interface Props {
   defaultSortKey?: string;
 }
 
+function rankColor(rank: number): string {
+  return rank === 1 ? 'text-yellow-500' : rank <= 3 ? 'text-orange-400' : rank <= 10 ? 'text-green-600' : 'text-gray-500';
+}
+
 function RankBadge({ rank }: { rank: number | null }) {
   if (rank == null) return <span className="text-gray-200 text-xs">—</span>;
+  return <span className={`text-xs font-semibold ${rankColor(rank)}`}>#{rank}</span>;
+}
+
+// Sticker thumbnail linking to the detail page (shared by the desktop table + mobile cards).
+function Thumb({ id, name, image_url }: { id: string; name: string; image_url: string | null }) {
   return (
-    <span
-      className={`text-xs font-semibold ${
-        rank === 1
-          ? 'text-yellow-500'
-          : rank <= 3
-          ? 'text-orange-400'
-          : rank <= 10
-          ? 'text-green-600'
-          : 'text-gray-500'
-      }`}
+    <Link
+      href={`/sticker/${id}`}
+      onClick={(e) => e.stopPropagation()}
+      className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 block"
     >
-      #{rank}
-    </span>
+      <Image
+        src={image_url ?? `https://stickershop.line-scdn.net/stickershop/v1/product/${id}/LINEStorePC/main.png`}
+        alt={name}
+        width={36}
+        height={36}
+        className="object-contain w-full h-full"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.visibility = 'hidden';
+        }}
+      />
+    </Link>
   );
 }
 
@@ -75,7 +87,105 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
+    <>
+      {/* Mobile (< sm): the wide table doesn't fit a phone, so show a card per sticker with every
+          country's rank inline as chips — no horizontal scroll — plus a sort-by-country control. */}
+      <div className="sm:hidden rounded-xl border border-gray-100 shadow-sm overflow-hidden bg-white">
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 overflow-x-auto">
+          <span className="text-[11px] text-gray-400 flex-shrink-0 uppercase tracking-wide">Sort</span>
+          {FEATURED.map((cc) => {
+            const info = COUNTRY_MAP[cc];
+            const active = sort?.key === cc;
+            return (
+              <button
+                key={cc}
+                onClick={() => toggleSort(cc)}
+                className={`flex-shrink-0 text-xs px-2 py-1 rounded-lg border transition-colors ${
+                  active ? 'border-green-200 bg-green-50 text-green-700 font-medium' : 'border-gray-200 bg-white text-gray-500'
+                }`}
+              >
+                {info?.flag} {cc.toUpperCase()}
+                {active && <span className="ml-0.5">{sort!.dir === 'asc' ? '▲' : '▼'}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="divide-y divide-gray-50">
+          {sortedProducts.map((p) => (
+            <div
+              key={p.id}
+              className="px-3 py-3 active:bg-green-50 transition-colors"
+              onClick={() => router.push(`/sticker/${p.id}`)}
+            >
+              <div className="flex items-center gap-2.5">
+                <Thumb id={p.id} name={p.name} image_url={p.image_url} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/sticker/${p.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-sm font-medium text-gray-700 truncate leading-tight"
+                    >
+                      {p.name}
+                    </Link>
+                    <TypeBadge type={p.sticker_type} />
+                  </div>
+                  {p.author &&
+                    (showAuthorLink ? (
+                      <Link
+                        href={`/creator/${encodeURIComponent(p.author)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs text-gray-400 truncate hover:text-green-600 block"
+                      >
+                        {p.author}
+                      </Link>
+                    ) : (
+                      <p className="text-xs text-gray-400 truncate">{p.author}</p>
+                    ))}
+                </div>
+                {onToggleFavorite && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleFavorite(p.id);
+                    }}
+                    aria-label="Toggle favorite"
+                    className={`text-xl leading-none flex-shrink-0 ${isFavorite?.(p.id) ? 'text-red-400' : 'text-gray-200'}`}
+                  >
+                    ♥
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {FEATURED.map((cc) => {
+                  const info = COUNTRY_MAP[cc];
+                  const rank = p.rankings[cc] ?? null;
+                  const active = sort?.key === cc;
+                  return (
+                    <span
+                      key={cc}
+                      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border ${
+                        active ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-gray-50'
+                      }`}
+                    >
+                      <span>{info?.flag}</span>
+                      <span className="text-gray-400">{cc.toUpperCase()}</span>
+                      {rank == null ? (
+                        <span className="text-gray-300">—</span>
+                      ) : (
+                        <span className={`font-semibold ${rankColor(rank)}`}>#{rank}</span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop (sm+): the full sortable table. */}
+      <div className="hidden sm:block overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
@@ -180,6 +290,7 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
