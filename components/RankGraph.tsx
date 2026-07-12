@@ -10,6 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
 } from 'recharts';
 import { COUNTRY_MAP } from '@/lib/countries';
 
@@ -58,6 +59,17 @@ function bestPerDay(points: DataPoint[]): { date: string; rank: number }[] {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// A few evenly-spaced, rounded rank ticks between lo and hi (for the "over 500" case, where we
+// take manual control of the Y axis so the sentinel tick can be added).
+function axisTicks(lo: number, hi: number): number[] {
+  if (hi <= lo) return [Math.round(lo)];
+  const n = 4;
+  const step = (hi - lo) / (n - 1);
+  return [...new Set(Array.from({ length: n }, (_, i) => Math.round(lo + step * i)))];
+}
+
+type Row = { t: number; label: string } & Record<string, number | string>;
+
 export default function RankGraph({ allData, selectedCountry, viewMode, onViewModeChange }: Props) {
   const [freq, setFreq] = useState<'daily' | 'hourly'>('daily');
 
@@ -68,40 +80,79 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
 
   const countriesToShow = viewMode === 'all' ? present : [selectedCountry];
 
-  // Merge each shown country's points into rows keyed by time slot, one column per country.
-  const rowMap = new Map<string, { t: number; label: string; [cc: string]: number | string }>();
-  for (const cc of countriesToShow) {
-    const pts = allData.filter((d) => d.country === cc);
-    if (freq === 'daily') {
-      for (const d of bestPerDay(pts)) {
-        const key = d.date;
-        let row = rowMap.get(key);
-        if (!row) { row = { t: Date.parse(`${d.date}T12:00:00Z`), label: dayLabel(d.date) }; rowMap.set(key, row); }
-        row[cc] = d.rank;
-      }
-    } else {
-      const cutoff = Date.now() - HOURLY_WINDOW_H * 3_600_000;
-      const window = pts
-        .filter((d) => slotTime(d.snapshot_date, d.snapshot_hour) >= cutoff)
-        .sort((a, b) => slotTime(a.snapshot_date, a.snapshot_hour) - slotTime(b.snapshot_date, b.snapshot_hour));
-      for (const d of window) {
-        const key = `${d.snapshot_date}#${d.snapshot_hour}`;
-        let row = rowMap.get(key);
-        if (!row) { row = { t: slotTime(d.snapshot_date, d.snapshot_hour), label: hourLabel(d.snapshot_date, d.snapshot_hour) }; rowMap.set(key, row); }
-        row[cc] = d.rank;
-      }
+  // Build the GLOBAL time domain from ALL countries — this is effectively the snapshot calendar,
+  // because every country is scraped together each hour. So if a shown country is MISSING at one of
+  // these times, it was out of the top 500 then (we only track the top 500), and we can plot it in
+  // an "Over #500" band instead of hiding the drop with connectNulls. All in-memory, zero reads.
+  const domain: { key: string; t: number; label: string }[] = [];
+  const seriesByCc = new Map<string, Map<string, number>>(); // cc → (time-key → rank)
+
+  if (freq === 'daily') {
+    for (const date of [...new Set(allData.map((d) => d.snapshot_date))].sort((a, b) => a.localeCompare(b))) {
+      domain.push({ key: date, t: Date.parse(`${date}T12:00:00Z`), label: dayLabel(date) });
+    }
+    for (const cc of countriesToShow) {
+      const m = new Map<string, number>();
+      for (const { date, rank } of bestPerDay(allData.filter((d) => d.country === cc))) m.set(date, rank);
+      seriesByCc.set(cc, m);
+    }
+  } else {
+    // Read-only "last 48h" cutoff for display; a few ms of drift across re-renders is harmless.
+    // eslint-disable-next-line react-hooks/purity
+    const cutoff = Date.now() - HOURLY_WINDOW_H * 3_600_000;
+    const keyOf = (d: DataPoint) => `${d.snapshot_date}#${d.snapshot_hour}`;
+    const inWin = allData.filter((d) => slotTime(d.snapshot_date, d.snapshot_hour) >= cutoff);
+    const slots = [...new Map(inWin.map((d) => [keyOf(d), d])).values()].sort(
+      (a, b) => slotTime(a.snapshot_date, a.snapshot_hour) - slotTime(b.snapshot_date, b.snapshot_hour)
+    );
+    for (const d of slots) domain.push({ key: keyOf(d), t: slotTime(d.snapshot_date, d.snapshot_hour), label: hourLabel(d.snapshot_date, d.snapshot_hour) });
+    for (const cc of countriesToShow) {
+      const m = new Map<string, number>();
+      for (const d of inWin.filter((x) => x.country === cc)) m.set(keyOf(d), d.rank);
+      seriesByCc.set(cc, m);
     }
   }
-  const chartRows = [...rowMap.values()].sort((a, b) => a.t - b.t);
 
-  const allRanks = chartRows.flatMap((r) => countriesToShow.map((cc) => r[cc]).filter((v): v is number => typeof v === 'number'));
-  const minRank = allRanks.length ? Math.min(...allRanks) : 1;
-  const maxRank = allRanks.length ? Math.max(...allRanks) : 50;
+  // Real rank range (excludes the "over 500" markers).
+  const realRanks: number[] = [];
+  for (const { key } of domain) {
+    for (const cc of countriesToShow) {
+      const r = seriesByCc.get(cc)?.get(key);
+      if (typeof r === 'number') realRanks.push(r);
+    }
+  }
+  const minRank = realRanks.length ? Math.min(...realRanks) : 1;
+  const maxRank = realRanks.length ? Math.max(...realRanks) : 50;
 
-  // Trend badge only makes sense for a single country.
+  // Does any shown country with data drop out of the top 500 somewhere in the domain?
+  const hasOverflow = domain.some(({ key }) =>
+    countriesToShow.some((cc) => {
+      const m = seriesByCc.get(cc);
+      return m && m.size > 0 && m.get(key) == null;
+    })
+  );
+  // "Over #500" sits just below the worst real rank so it never squashes the real range on a top
+  // sticker that only occasionally drops out.
+  const overLevel = Math.round(maxRank + Math.max(8, (maxRank - minRank) * 0.25));
+  const zoneTop = Math.round(maxRank + Math.max(4, (overLevel - maxRank) * 0.35)); // divider between real + over-500
+
+  const chartRows: Row[] = domain.map(({ t, label, key }) => {
+    const row: Row = { t, label };
+    for (const cc of countriesToShow) {
+      const m = seriesByCc.get(cc);
+      const r = m?.get(key);
+      if (typeof r === 'number') row[cc] = r;
+      else if (hasOverflow && m && m.size > 0) row[cc] = overLevel; // present here otherwise → out of top 500
+      // else: leave the cell unset (country genuinely has no data in this view)
+    }
+    return row;
+  });
+
+  // Trend badge (single country) — from REAL ranks only, ignoring over-500 sentinels.
   let trend: { dir: 'up' | 'down' | 'flat'; diff: number } | null = null;
   if (viewMode === 'each') {
-    const series = chartRows.map((r) => r[selectedCountry]).filter((v): v is number => typeof v === 'number');
+    const m = seriesByCc.get(selectedCountry);
+    const series = domain.map((d) => m?.get(d.key)).filter((v): v is number => typeof v === 'number');
     if (series.length > 1) {
       const first = series[0], last = series[series.length - 1];
       trend = { dir: last < first ? 'up' : last > first ? 'down' : 'flat', diff: Math.abs(first - last) };
@@ -110,6 +161,12 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
 
   const selInfo = COUNTRY_MAP[selectedCountry];
   const noData = countriesToShow.every((cc) => !allData.some((d) => d.country === cc));
+
+  const yDomain: [number, number] = [
+    Math.max(1, minRank - 2),
+    hasOverflow ? overLevel + Math.max(3, Math.round((overLevel - maxRank) * 0.3)) : maxRank + 2,
+  ];
+  const yTicks = hasOverflow ? [...axisTicks(minRank, maxRank), overLevel] : undefined;
 
   return (
     <div>
@@ -196,6 +253,13 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
         </div>
       )}
 
+      {hasOverflow && (
+        <p className="text-[11px] text-gray-400 mb-1">
+          A line dropping into the <span className="text-red-400 font-medium">Over&nbsp;#500</span> band means the sticker
+          fell out of that country&apos;s top 500 (we only track the top 500).
+        </p>
+      )}
+
       {noData || chartRows.length === 0 ? (
         <div className="flex items-center justify-center h-44 text-sm text-gray-400">
           {noData ? 'No history data for this view yet.' : `No ${freq} snapshots yet — it fills in as the scraper runs.`}
@@ -207,17 +271,32 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} interval="preserveStartEnd" />
             <YAxis
               reversed
-              domain={[Math.max(1, minRank - 2), maxRank + 2]}
+              domain={yDomain}
+              ticks={yTicks}
               tick={{ fontSize: 10, fill: '#9ca3af' }}
-              tickFormatter={(v) => `#${v}`}
-              width={34}
+              tickFormatter={(v) => (hasOverflow && v === overLevel ? 'Over 500' : `#${v}`)}
+              width={hasOverflow ? 50 : 34}
             />
             <Tooltip
-              formatter={(value, name) => [`#${value}`, COUNTRY_MAP[name as string]?.name ?? String(name)]}
+              formatter={(value, name) => [
+                hasOverflow && value === overLevel ? 'Over #500' : `#${value}`,
+                COUNTRY_MAP[name as string]?.name ?? String(name),
+              ]}
               labelStyle={{ fontSize: 11 }}
               contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
             />
-            {viewMode === 'each' && minRank <= 3 && (
+            {/* Shaded "out of top 500" zone at the bottom. */}
+            {hasOverflow && (
+              <ReferenceArea
+                y1={zoneTop}
+                y2={yDomain[1]}
+                fill="#fef2f2"
+                fillOpacity={0.7}
+                ifOverflow="extendDomain"
+                label={{ value: 'Over #500', fontSize: 10, fill: '#ef4444', position: 'insideBottomLeft' }}
+              />
+            )}
+            {viewMode === 'each' && !hasOverflow && minRank <= 3 && (
               <ReferenceLine
                 y={minRank}
                 stroke="#f59e0b"
