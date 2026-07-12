@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import GlobalRankTable from '@/components/GlobalRankTable';
@@ -86,6 +86,20 @@ export default function StickerDetailClient({
       setRefreshing(false);
     }
   }
+
+  // The graph's `initialHistory` is ISR-cached (up to ~30 min old) and does NOT update when the
+  // user clicks Refresh — only the table's `rankings` does. That made the chart's latest point lag
+  // the table by an hour after a refresh. Fold each country's CURRENT snapshot (from `rankings`,
+  // which IS fresh) into the history so the chart's rightmost point always matches the table. Zero
+  // extra reads — reuses data already fetched. Only `is_current` rows (the country's live snapshot);
+  // a dropped-out country stays absent so the "Over #500" band still shows the drop.
+  const graphData = useMemo(() => {
+    const seen = new Set(initialHistory.map((h) => `${h.country}#${h.snapshot_date}#${h.snapshot_hour}`));
+    const extra: HistoryRow[] = rankings
+      .filter((r) => r.is_current && !seen.has(`${r.country}#${r.snapshot_date}#${r.snapshot_hour}`))
+      .map((r) => ({ country: r.country, snapshot_date: r.snapshot_date, snapshot_hour: r.snapshot_hour, rank: r.current_rank }));
+    return extra.length ? [...initialHistory, ...extra] : initialHistory;
+  }, [initialHistory, rankings]);
 
   const favorited = favLoaded && isFavorite(id);
 
@@ -224,7 +238,7 @@ export default function StickerDetailClient({
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <h2 className="font-bold text-gray-700 mb-4">Ranking history</h2>
           <RankGraph
-            allData={initialHistory}
+            allData={graphData}
             selectedCountry={selectedCountry}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
