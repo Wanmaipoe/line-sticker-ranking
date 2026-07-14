@@ -80,17 +80,21 @@ export async function GET(req: NextRequest) {
   } catch {
     // meta table missing (never created) or unreadable — fall back to the stateless schedule.
   }
-  if (metaReadable && lastAt > 0) {
-    const sinceLastH = (Date.now() - lastAt) / 3_600_000;
-    if (sinceLastH < REALERT_HOURS) {
-      return NextResponse.json({ ok: true, stale: true, alerted: false, note: `already alerted ${sinceLastH.toFixed(1)}h ago` });
-    }
-  } else {
-    // No dedup state — only alert at the escalation points (checks run hourly, so each bucket
-    // matches exactly one check): first at 2-3h stale, then every ~6h of staleness.
-    const inSchedule = (freshest >= 2 && freshest < 3) || (freshest >= 6 && Math.floor(freshest) % 6 === 0);
-    if (!inSchedule) {
-      return NextResponse.json({ ok: true, stale: true, alerted: false, note: `stateless dedup: next alert at the ${Math.ceil(freshest / 6) * 6}h mark` });
+  // ?force=1 (still CRON_SECRET-authed) skips dedup so the email pipeline can be tested on demand.
+  const force = req.nextUrl.searchParams.get('force') === '1';
+  if (!force) {
+    if (metaReadable && lastAt > 0) {
+      const sinceLastH = (Date.now() - lastAt) / 3_600_000;
+      if (sinceLastH < REALERT_HOURS) {
+        return NextResponse.json({ ok: true, stale: true, alerted: false, note: `already alerted ${sinceLastH.toFixed(1)}h ago` });
+      }
+    } else {
+      // No dedup state — only alert at the escalation points (checks run hourly, so each bucket
+      // matches exactly one check): first at 2-3h stale, then every ~6h of staleness.
+      const inSchedule = (freshest >= 2 && freshest < 3) || (freshest >= 6 && Math.floor(freshest) % 6 === 0);
+      if (!inSchedule) {
+        return NextResponse.json({ ok: true, stale: true, alerted: false, note: `stateless dedup: next alert at the ${Math.ceil(freshest / 6) * 6}h mark` });
+      }
     }
   }
 
