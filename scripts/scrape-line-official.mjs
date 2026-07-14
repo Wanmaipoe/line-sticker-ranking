@@ -219,8 +219,34 @@ async function runFull() {
   const nowIso = now.toISOString();
   const summary = {};
 
+  // FORCE=1 re-writes a snapshot that already exists (manual re-scrape of the current hour).
+  const FORCE = process.env.FORCE === '1';
+
   for (const country of COUNTRIES) {
     try {
+      // WRITE-QUOTA GUARD (2026-07 incident: rows-written quota blown mid-month): if this hour's
+      // snapshot already exists AND looks complete, another writer (cron-job.org / GitHub cron /
+      // old computer) got here first — skip the whole country. A duplicate run used to cost ~15k
+      // row-writes (INSERT OR REPLACE = delete+insert across every index); now it costs 1 COUNT
+      // read. The completeness threshold matters: a partial snapshot (pagination died mid-run)
+      // must NOT lock the hour — a later writer should rewrite it with full data.
+      const COMPLETE_THRESHOLD = Math.min(400, Math.floor(MAX_RANK * 0.8));
+      if (!FORCE) {
+        const existing = await client.execute({
+          sql: `SELECT COUNT(*) AS n FROM rankings WHERE country = ? AND snapshot_date = ? AND snapshot_hour = ?`,
+          args: [country, snapshotDate, hour],
+        });
+        const n = Number(existing.rows[0]?.n ?? 0);
+        if (n >= COMPLETE_THRESHOLD) {
+          summary[country] = { items: 0, skipped: `snapshot already exists (${n} rows)` };
+          console.log(`[scraper] ${country} ${snapshotDate} h${hour}: skipped (snapshot already exists, ${n} rows)`);
+          continue;
+        }
+        if (n > 0) {
+          console.log(`[scraper] ${country} ${snapshotDate} h${hour}: existing snapshot looks partial (${n} rows) — rewriting`);
+        }
+      }
+
       const ranking = await getCountryRanking(country);
       if (!ranking.length) {
         summary[country] = { items: 0 };
@@ -228,7 +254,28 @@ async function runFull() {
         continue;
       }
 
-      // Clear this snapshot first so a re-run within the same hour can't leave stale
+      // WRITE-QUOTA GUARD 2: products barely change hour to hour, but this used to upsert all
+      // 500 rows per country per run (~2.5k+ wasted writes/hour, multiplied by indexes). Read the
+      // existing rows (cheap PK seeks) and only write genuinely new/changed products, mirroring
+      // the COALESCE semantics of the upsert (a NULL scrape value never counts as a change).
+      const ids = ranking.map((i) => i.id);
+      const ph = ids.map(() => '?').join(',');
+      const existingRows = await client.execute({
+        sql: `SELECT id, name, image_url, author, sticker_type FROM products WHERE id IN (${ph})`,
+        args: ids,
+      });
+      const byId = new Map(existingRows.rows.map((r) => [r.id, r]));
+      const changedProducts = ranking.filter((item) => {
+        const ex = byId.get(item.id);
+        if (!ex) return true; // brand-new product
+        if ((item.name ?? item.id) !== ex.name) return true;
+        if (item.image != null && item.image !== ex.image_url) return true;
+        if (item.author != null && item.author !== ex.author) return true;
+        if (item.stickerType != null && item.stickerType !== ex.sticker_type) return true;
+        return false;
+      });
+
+      // Clear this snapshot first so a FORCE re-run within the same hour can't leave stale
       // rows for stickers that dropped out of the top N (otherwise = duplicate ranks).
       const statements = [
         {
@@ -236,28 +283,26 @@ async function runFull() {
           args: [country, snapshotDate, hour],
         },
       ];
-      statements.push(...ranking.flatMap((item) => [
-        {
-          sql: `INSERT INTO products (id, name, image_url, author, sticker_type, price, price_currency, description, updated_at)
-                VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                  name = excluded.name,
-                  image_url = COALESCE(excluded.image_url, products.image_url),
-                  author = COALESCE(excluded.author, products.author),
-                  sticker_type = COALESCE(excluded.sticker_type, products.sticker_type),
-                  updated_at = excluded.updated_at`,
-          args: [item.id, item.name ?? item.id, item.image ?? null, item.author ?? null, item.stickerType ?? null, nowIso],
-        },
-        {
-          sql: `INSERT OR REPLACE INTO rankings (product_id, country, rank, snapshot_date, snapshot_hour, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)`,
-          args: [item.id, country, item.rank, snapshotDate, hour, nowIso],
-        },
-      ]));
+      statements.push(...changedProducts.map((item) => ({
+        sql: `INSERT INTO products (id, name, image_url, author, sticker_type, price, price_currency, description, updated_at)
+              VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                image_url = COALESCE(excluded.image_url, products.image_url),
+                author = COALESCE(excluded.author, products.author),
+                sticker_type = COALESCE(excluded.sticker_type, products.sticker_type),
+                updated_at = excluded.updated_at`,
+        args: [item.id, item.name ?? item.id, item.image ?? null, item.author ?? null, item.stickerType ?? null, nowIso],
+      })));
+      statements.push(...ranking.map((item) => ({
+        sql: `INSERT OR REPLACE INTO rankings (product_id, country, rank, snapshot_date, snapshot_hour, created_at)
+              VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [item.id, country, item.rank, snapshotDate, hour, nowIso],
+      })));
 
       await client.batch(statements, 'write');
-      summary[country] = { items: ranking.length };
-      console.log(`[scraper] ${country} ${snapshotDate} h${hour}: ${ranking.length} items`);
+      summary[country] = { items: ranking.length, product_writes: changedProducts.length };
+      console.log(`[scraper] ${country} ${snapshotDate} h${hour}: ${ranking.length} ranks, ${changedProducts.length} product writes`);
     } catch (err) {
       summary[country] = { items: 0, error: err.message };
       console.error(`[scraper] ${country} error: ${err.message}`);
@@ -267,11 +312,13 @@ async function runFull() {
 
   console.log('\n[scraper] Done:', JSON.stringify(summary, null, 2));
 
-  // If every country came back empty, the run effectively failed — exit non-zero so it
-  // shows up as a failed task (not a silent "success") and isn't mistaken for fresh data.
+  // If nothing was written, the run only counts as a success when EVERY country was skipped
+  // (another writer already delivered this hour — exactly what the guard is for). One skip must
+  // not mask the other countries erroring out or parsing zero items.
   const totalItems = Object.values(summary).reduce((n, s) => n + (s.items || 0), 0);
-  if (totalItems === 0) {
-    console.error('[scraper] wrote 0 items across all countries — exiting non-zero');
+  const totalSkipped = Object.values(summary).filter((s) => s.skipped).length;
+  if (totalItems === 0 && totalSkipped !== COUNTRIES.length) {
+    console.error('[scraper] wrote 0 items and not all countries were skipped — exiting non-zero');
     process.exit(1);
   }
 }
