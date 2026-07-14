@@ -64,13 +64,43 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, stale: false, freshestAgeHours: Number(freshest.toFixed(2)) });
   }
 
-  // Dedup: only alert if we haven't alerted in the last REALERT_HOURS.
-  await client.execute(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
-  const last = await client.execute({ sql: `SELECT value FROM meta WHERE key = 'stale_alert_at'`, args: [] });
-  const lastAt = last.rows[0]?.value ? Date.parse(last.rows[0].value as string) : 0;
-  const sinceLastH = (Date.now() - lastAt) / 3_600_000;
-  if (sinceLastH < REALERT_HOURS) {
-    return NextResponse.json({ ok: true, stale: true, alerted: false, note: `already alerted ${sinceLastH.toFixed(1)}h ago` });
+  // Dedup — DESIGNED TO NEVER BLOCK THE ALERT. The 2026-07-13 outage was a Turso WRITE-quota
+  // block, and the original code did `CREATE TABLE meta` (a write) before sending, so the route
+  // 500'd every check and no alert ever went out — exactly when the alert mattered most.
+  // Now: (1) dedup state is READ-only here (missing table = no state, fine); (2) a stateless
+  // escalation schedule limits emails even with no state (first alert at 2-3h stale, then every
+  // ~6h); (3) state is written best-effort AFTER the email, and a write failure is reported in
+  // the email itself as a likely-quota hint.
+  let lastAt = 0;
+  let metaReadable = false;
+  try {
+    const last = await client.execute({ sql: `SELECT value FROM meta WHERE key = 'stale_alert_at'`, args: [] });
+    lastAt = last.rows[0]?.value ? Date.parse(last.rows[0].value as string) : 0;
+    metaReadable = true;
+  } catch {
+    // meta table missing (never created) or unreadable — fall back to the stateless schedule.
+  }
+  if (metaReadable && lastAt > 0) {
+    const sinceLastH = (Date.now() - lastAt) / 3_600_000;
+    if (sinceLastH < REALERT_HOURS) {
+      return NextResponse.json({ ok: true, stale: true, alerted: false, note: `already alerted ${sinceLastH.toFixed(1)}h ago` });
+    }
+  } else {
+    // No dedup state — only alert at the escalation points (checks run hourly, so each bucket
+    // matches exactly one check): first at 2-3h stale, then every ~6h of staleness.
+    const inSchedule = (freshest >= 2 && freshest < 3) || (freshest >= 6 && Math.floor(freshest) % 6 === 0);
+    if (!inSchedule) {
+      return NextResponse.json({ ok: true, stale: true, alerted: false, note: `stateless dedup: next alert at the ${Math.ceil(freshest / 6) * 6}h mark` });
+    }
+  }
+
+  // Probe writability so the email can say WHY the pipeline is probably down (a blocked write
+  // here is a strong hint the scraper's writes are blocked too, e.g. Turso write quota).
+  let writeIssue: string | null = null;
+  try {
+    await client.execute(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+  } catch (e) {
+    writeIssue = e instanceof Error ? e.message : String(e);
   }
 
   const rows = perCountry
@@ -89,11 +119,17 @@ export async function GET(req: NextRequest) {
   <div style="font-weight:700;font-size:18px;margin-bottom:12px">⚠️ LineStickerRanking — rankings data is stale</div>
   <p style="font-size:14px;line-height:1.6">The newest snapshot is <b>${freshest.toFixed(1)} hours old</b> (threshold: ${STALE_HOURS}h). The hourly scraper pipeline is probably not running.</p>
   <table style="font-size:13px;border-collapse:collapse;margin:12px 0">${rows}</table>
+  ${
+    writeIssue
+      ? `<p style="font-size:13px;line-height:1.6;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;color:#991b1b"><b>Likely cause found:</b> database writes are failing — <i>${writeIssue}</i>. If this mentions "blocked", the Turso rows-written quota is exhausted: check the Turso dashboard → Usage, and either upgrade the plan or wait for the monthly reset. The scraper cannot write until then.</p>`
+      : ''
+  }
   <p style="font-size:13px;line-height:1.6;color:#555">
     Checklist:<br>
-    1. Is the old computer on and its scheduled task running?<br>
-    2. <a href="https://github.com/Wanmaipoe/line-sticker-ranking/actions">GitHub Actions runs</a> — any red runs, or none recently?<br>
-    3. Quick fix: trigger "Run workflow" on the Scrape workflow, or run the scraper locally.
+    1. <a href="https://github.com/Wanmaipoe/line-sticker-ranking/actions">GitHub Actions runs</a> — red runs mean the scraper is failing (open one for the error); none recently means the trigger stopped.<br>
+    2. cron-job.org — are the "trigger scrape" and "freshness watchdog" jobs still enabled?<br>
+    3. Turso dashboard → Usage — rows read AND rows written vs the plan limits.<br>
+    4. Quick fix once the cause is cleared: trigger "Run workflow" on the Scrape workflow, or run the scraper locally.
   </p>
 </div>`;
 
@@ -102,14 +138,28 @@ export async function GET(req: NextRequest) {
   try {
     await sendEmail(admin, `⚠️ LineStickerRanking data stale (${freshest.toFixed(1)}h old)`, html);
     alerted = true;
-    await client.execute({
-      sql: `INSERT INTO meta (key, value) VALUES ('stale_alert_at', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      args: [new Date().toISOString()],
-    });
   } catch (e) {
     console.error('stale alert send failed', e);
   }
 
-  return NextResponse.json({ ok: true, stale: true, alerted, freshestAgeHours: Number(freshest.toFixed(2)) });
+  // Best-effort dedup state — failure here must never undo/blck the alert above.
+  if (alerted && !writeIssue) {
+    try {
+      await client.execute({
+        sql: `INSERT INTO meta (key, value) VALUES ('stale_alert_at', ?)
+              ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        args: [new Date().toISOString()],
+      });
+    } catch (e) {
+      console.error('stale alert state write failed (alert was still sent)', e);
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    stale: true,
+    alerted,
+    freshestAgeHours: Number(freshest.toFixed(2)),
+    writeIssue,
+  });
 }
