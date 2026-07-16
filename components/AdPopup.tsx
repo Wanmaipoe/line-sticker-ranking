@@ -1,13 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { readAdsEnabled } from '@/lib/ads';
 
 export default function AdPopup() {
   const [open, setOpen] = useState(false);
   const [imgOk, setImgOk] = useState(true);
+  // Parked feature: hidden unless NEXT_PUBLIC_ADS_ENABLED=1 (site-wide) or the footer toggle set a
+  // per-browser override. Starts false so SSR and the first client render agree; the effect can
+  // only ever turn it ON, never flash it off.
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEnabled(readAdsEnabled());
+  }, []);
 
   // Auto-show once per browser session, then closeable. Floating button reopens it.
   useEffect(() => {
+    if (!enabled) return;
     try {
       if (sessionStorage.getItem('lsr_ad_shown')) return;
     } catch {
@@ -24,7 +34,9 @@ export default function AdPopup() {
       }
     }, 9000);
     return () => clearTimeout(t);
-  }, []);
+  }, [enabled]);
+
+  if (!enabled) return null;
 
   return (
     <>

@@ -1,3 +1,5 @@
+import AdsToggle from '@/components/AdsToggle';
+
 export default function Footer() {
   return (
     <footer className="border-t border-gray-100 mt-12 py-8 text-center text-xs text-gray-400 space-y-1">
@@ -21,6 +23,9 @@ export default function Footer() {
         <a href="/ja" lang="ja" className="hover:text-green-600">日本語</a>
         {' · '}
         <a href="/zh-hant" lang="zh-Hant" className="hover:text-green-600">繁體中文</a>
+      </p>
+      <p className="pt-2">
+        <AdsToggle />
       </p>
     </footer>
   );
