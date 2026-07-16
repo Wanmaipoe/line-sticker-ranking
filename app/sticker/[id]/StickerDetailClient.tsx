@@ -23,6 +23,7 @@ interface RankRow {
   current_rank: number;
   snapshot_date: string;
   snapshot_hour: number;
+  snapshot_minute?: number;
   rank_24h_ago: number | null;
   best_30d: number | null;
   is_current: boolean;
@@ -32,6 +33,7 @@ interface HistoryRow {
   country: string;
   snapshot_date: string;
   snapshot_hour: number;
+  snapshot_minute?: number;
   rank: number;
 }
 
@@ -97,7 +99,13 @@ export default function StickerDetailClient({
     const seen = new Set(initialHistory.map((h) => `${h.country}#${h.snapshot_date}#${h.snapshot_hour}`));
     const extra: HistoryRow[] = rankings
       .filter((r) => r.is_current && !seen.has(`${r.country}#${r.snapshot_date}#${r.snapshot_hour}`))
-      .map((r) => ({ country: r.country, snapshot_date: r.snapshot_date, snapshot_hour: r.snapshot_hour, rank: r.current_rank }));
+      .map((r) => ({
+        country: r.country,
+        snapshot_date: r.snapshot_date,
+        snapshot_hour: r.snapshot_hour,
+        snapshot_minute: r.snapshot_minute,
+        rank: r.current_rank,
+      }));
     return extra.length ? [...initialHistory, ...extra] : initialHistory;
   }, [initialHistory, rankings]);
 

@@ -18,6 +18,10 @@ interface DataPoint {
   country: string;
   snapshot_date: string;
   snapshot_hour: number;
+  // Minute the snapshot was actually captured (the scrape runs around :30, but not exactly — some
+  // runs land at :08 etc). snapshot_hour alone is just the hour bucket, so labelling points at
+  // hour:00 read up to an hour earlier than reality. Optional: older callers may omit it.
+  snapshot_minute?: number;
   rank: number;
 }
 
@@ -39,13 +43,15 @@ const HOURLY_WINDOW_H = 48;
 function dayLabel(date: string) {
   return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
 }
-function hourLabel(date: string, hour: number) {
-  return new Date(`${date}T${String(hour).padStart(2, '0')}:00:00Z`).toLocaleString('en-GB', {
+const pad = (n: number) => String(n).padStart(2, '0');
+
+function hourLabel(date: string, hour: number, minute = 0) {
+  return new Date(`${date}T${pad(hour)}:${pad(minute)}:00Z`).toLocaleString('en-GB', {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
   });
 }
-function slotTime(date: string, hour: number) {
-  return Date.parse(`${date}T${String(hour).padStart(2, '0')}:00:00Z`);
+function slotTime(date: string, hour: number, minute = 0) {
+  return Date.parse(`${date}T${pad(hour)}:${pad(minute)}:00Z`);
 }
 
 // Best (lowest) rank per day for one country's points.
@@ -100,12 +106,21 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
     // Read-only "last 48h" cutoff for display; a few ms of drift across re-renders is harmless.
     // eslint-disable-next-line react-hooks/purity
     const cutoff = Date.now() - HOURLY_WINDOW_H * 3_600_000;
+    // Key on the HOUR bucket (not the minute) so every country's point for a given scrape lands on
+    // the same x slot — the all-country merge and the "Over #500" gap detection depend on that.
+    // The minute is only used to place/label the slot at the real capture time.
     const keyOf = (d: DataPoint) => `${d.snapshot_date}#${d.snapshot_hour}`;
-    const inWin = allData.filter((d) => slotTime(d.snapshot_date, d.snapshot_hour) >= cutoff);
+    const inWin = allData.filter((d) => slotTime(d.snapshot_date, d.snapshot_hour, d.snapshot_minute) >= cutoff);
     const slots = [...new Map(inWin.map((d) => [keyOf(d), d])).values()].sort(
-      (a, b) => slotTime(a.snapshot_date, a.snapshot_hour) - slotTime(b.snapshot_date, b.snapshot_hour)
+      (a, b) => slotTime(a.snapshot_date, a.snapshot_hour, a.snapshot_minute) - slotTime(b.snapshot_date, b.snapshot_hour, b.snapshot_minute)
     );
-    for (const d of slots) domain.push({ key: keyOf(d), t: slotTime(d.snapshot_date, d.snapshot_hour), label: hourLabel(d.snapshot_date, d.snapshot_hour) });
+    for (const d of slots) {
+      domain.push({
+        key: keyOf(d),
+        t: slotTime(d.snapshot_date, d.snapshot_hour, d.snapshot_minute),
+        label: hourLabel(d.snapshot_date, d.snapshot_hour, d.snapshot_minute),
+      });
+    }
     for (const cc of countriesToShow) {
       const m = new Map<string, number>();
       for (const d of inWin.filter((x) => x.country === cc)) m.set(keyOf(d), d.rank);

@@ -121,6 +121,15 @@ export async function getProductsWithRankings(
   return out;
 }
 
+// A snapshot's real capture minute, from its created_at. snapshot_hour is only the hour bucket, so
+// without this the charts label every point at hour:00 — up to an hour earlier than reality.
+// Falls back to 0 (the old behaviour) for legacy rows with a missing/unparseable created_at.
+function minuteOf(createdAt: string | null): number {
+  if (!createdAt) return 0;
+  const m = new Date(createdAt).getUTCMinutes();
+  return Number.isFinite(m) ? m : 0;
+}
+
 export async function getLatestRankingsForProduct(client: Client, productId: string) {
   const result = await client.execute({
     sql: `WITH latest AS (
@@ -149,6 +158,7 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
       r.rank AS current_rank,
       r.snapshot_date,
       r.snapshot_hour,
+      r.created_at,
       r2.rank AS rank_24h_ago,
       b.best_rank AS best_30d,
       -- is this rank from the country's CURRENT snapshot? Compare the product's latest key for
@@ -177,6 +187,9 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
       current_rank: row.current_rank as number,
       snapshot_date: row.snapshot_date as string,
       snapshot_hour: row.snapshot_hour as number,
+      // Real capture minute (the scrape runs near :30, not exactly on the hour). Sent so the chart
+      // labels this point at the true time and matches the history rows around it.
+      snapshot_minute: minuteOf(row.created_at as string | null),
       rank_24h_ago: row.rank_24h_ago as number | null,
       best_30d: row.best_30d as number | null,
       is_current: (row.is_current as number) === 1, // is this rank from the country's latest snapshot?
@@ -345,7 +358,11 @@ export async function getRankingHistory(client: Client, productId: string, count
 // and filter to a single country with zero extra DB reads.
 export async function getRankingHistoryAll(client: Client, productId: string, days = 30) {
   const result = await client.execute({
-    sql: `SELECT country, snapshot_date, snapshot_hour, rank
+    // created_at is the moment the snapshot was actually captured; snapshot_hour is only the hour
+    // bucket. Selecting it costs no extra reads (same rows), and we ship only its MINUTE (a small
+    // int) to the client so the chart can label points at the real capture time (e.g. 20:30, not
+    // 20:00) without bloating the payload with full timestamps.
+    sql: `SELECT country, snapshot_date, snapshot_hour, rank, created_at
           FROM rankings
           WHERE product_id = ? AND snapshot_date >= date('now', ? || ' days')
           ORDER BY country ASC, snapshot_date ASC, snapshot_hour ASC`,
@@ -355,6 +372,7 @@ export async function getRankingHistoryAll(client: Client, productId: string, da
     country: row.country as string,
     snapshot_date: row.snapshot_date as string,
     snapshot_hour: row.snapshot_hour as number,
+    snapshot_minute: minuteOf(row.created_at as string | null),
     rank: row.rank as number,
   }));
 }
