@@ -51,7 +51,12 @@ export function verifyToken(token: string | undefined, now: number = Date.now())
   const expMs = Number(exp);
   if (!Number.isFinite(expMs) || expMs <= now) return false;
 
+  // Reject anything that isn't a bare sha256 hex digest BEFORE comparing. Next decodes cookie
+  // values with decodeURIComponent, so a planted `%C3%A9...` arrives as one non-ASCII char: a
+  // 64-CHARACTER sig that is 65 BYTES. A string-length check would pass it through and
+  // timingSafeEqual would throw RangeError, 500ing the page with no login form to recover from.
+  if (!/^[0-9a-f]{64}$/.test(sig)) return false;
+
   const expected = createHmac('sha256', key).update(exp).digest('hex');
-  if (expected.length !== sig.length) return false;
   return timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
 }

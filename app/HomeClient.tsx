@@ -398,14 +398,20 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
   // Entry point to the team's revenue-split tool. Shown to everyone on purpose — it leads to a
   // password prompt, not to any data — and the padlock sets the expectation before the click.
   // Rendered in two places (mobile row vs desktop rail), so it's built once here.
+  //
+  // Deliberately a plain <a>, NOT <Link>: this must be a full document load. Microsoft Clarity
+  // (session replay) boots from the root layout and keeps recording across client-side
+  // navigation, so a <Link> would carry a live Clarity tag onto /revenue and upload the payout
+  // figures rendered there. A real navigation guarantees /revenue starts from a document where
+  // ClarityAnalytics opted out. Do not "optimise" this back to <Link>.
   const revenueLink = (
-    <Link
+    <a
       href="/revenue"
       title="Revenue distribution (team only)"
       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors flex-shrink-0"
     >
       <span aria-hidden>🔒</span> Revenue
-    </Link>
+    </a>
   );
 
   return (

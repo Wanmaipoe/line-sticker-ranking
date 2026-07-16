@@ -479,10 +479,14 @@ export default function RevenueClient() {
                       <td className="text-right text-gray-500 text-xs">100%</td>
                       <td className="text-right text-gray-700">{money(report.rowTotal, null)}</td>
                       <td className="text-right text-green-700">
-                        {money(
-                          split.shares.reduce((a, s) => a + (s.afterTax ?? 0), 0),
-                          null
-                        )}
+                        {/* Every row shows '—' when after-tax is unknown; the total must not
+                            contradict them with a confident 0. */}
+                        {split.shares.some((s) => s.afterTax != null)
+                          ? money(
+                              split.shares.reduce((a, s) => a + (s.afterTax ?? 0), 0),
+                              null
+                            )
+                          : '—'}
                       </td>
                     </tr>
                   </tfoot>

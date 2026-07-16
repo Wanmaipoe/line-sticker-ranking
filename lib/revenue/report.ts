@@ -88,7 +88,10 @@ export function parseCsvRows(text: string): string[][] {
       } else field += c;
       continue;
     }
-    if (c === '"') quoted = true;
+    // A quote only opens a quoted field at the START of one. Mid-field it's a literal — e.g. an
+    // unescaped title like `Cat 5" Tall`. Treating that as an opening quote would swallow every
+    // following row into one field and silently corrupt the split. Matches Excel/Sheets leniency.
+    if (c === '"' && field === '') quoted = true;
     else if (c === ',') {
       row.push(field);
       field = '';
