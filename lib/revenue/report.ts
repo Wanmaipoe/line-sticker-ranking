@@ -56,18 +56,19 @@ export interface ParsedReport {
   rowTotal: number;
   /** True when rowTotal ties out with the footer's Total Revenue Share (±1 for rounding). */
   tiesOut: boolean;
-  currency: string | null;
+  /** Always JPY — see REPORT_CURRENCY. */
+  currency: string;
   warnings: string[];
 }
 
-// LINE pays a creator in their country-of-residence currency.
-const CURRENCY_BY_RESIDENCE: Record<string, string> = {
-  TH: 'THB',
-  JP: 'JPY',
-  TW: 'TWD',
-  ID: 'IDR',
-  US: 'USD',
-};
+// LINE Creators Market settles in yen, full stop — whatever the creator's residence and whichever
+// country a pack sold in. The report says so three ways: its timestamps are GMT+9, and the 20.42%
+// withholding is Japan's non-resident rate (20% + 2.1% reconstruction surtax), charged to a
+// TH-resident creator because the income is Japanese-source.
+//
+// "Country of Residence" selects that TAX RATE. It is NOT a currency hint. Reading it as one
+// labelled a Thai creator's yen as baht — the same number, off by ~4x in meaning.
+export const REPORT_CURRENCY = 'JPY';
 
 /** RFC4180-ish reader: handles quoted fields, escaped "" quotes, CRLF, and a leading BOM. */
 export function parseCsvRows(text: string): string[][] {
@@ -265,7 +266,7 @@ export function parseLineReport(text: string): ParsedReport {
     period,
     rowTotal,
     tiesOut,
-    currency: footer.residence ? (CURRENCY_BY_RESIDENCE[footer.residence] ?? null) : null,
+    currency: REPORT_CURRENCY,
     warnings,
   };
 }

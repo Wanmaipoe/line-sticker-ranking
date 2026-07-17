@@ -395,9 +395,9 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
     })),
   ];
 
-  // Entry point to the team's revenue-split tool. Shown to everyone on purpose — it leads to a
-  // password prompt, not to any data — and the padlock sets the expectation before the click.
-  // Rendered in two places (mobile row vs desktop rail), so it's built once here.
+  // Entry point to the team's revenue-split tool, sitting with the other nav pills. Shown to
+  // everyone on purpose — it leads to a password prompt, not to any data — and the padlock sets
+  // the expectation before the click.
   //
   // Deliberately a plain <a>, NOT <Link>: this must be a full document load. Microsoft Clarity
   // (session replay) boots from the root layout and keeps recording across client-side
@@ -408,9 +408,9 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
     <a
       href="/revenue"
       title="Revenue distribution (team only)"
-      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors flex-shrink-0"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
     >
-      <span aria-hidden>🔒</span> Revenue
+      🔒 Revenue
     </a>
   );
 
@@ -539,14 +539,11 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
             )}
           </div>
 
-          <div className="hidden sm:flex items-center gap-3 flex-shrink-0">
-            {dashboard?.updatedAt && (
-              <span className="text-xs text-gray-400">
-                Updated {toThaiTime(dashboard.updatedAt)} (BKK)
-              </span>
-            )}
-            {revenueLink}
-          </div>
+          {dashboard?.updatedAt && (
+            <span className="text-xs text-gray-400 flex-shrink-0 hidden sm:block">
+              Updated {toThaiTime(dashboard.updatedAt)} (BKK)
+            </span>
+          )}
 
         </div>
 
@@ -564,9 +561,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
           >
             🏅 Top Creators
           </a>
-          {/* Phone header can't fit logo + timestamp + this on one line (it overflowed 375px), so
-              on mobile the entry point lives here instead of the top-right rail. */}
-          <span className="ml-auto sm:hidden">{revenueLink}</span>
+          {revenueLink}
         </div>
       </header>
 
