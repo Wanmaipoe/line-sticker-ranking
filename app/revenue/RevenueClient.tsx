@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -8,10 +8,13 @@ import { useOwnerMap } from '@/hooks/useOwnerMap';
 import {
   parseLineReport,
   splitByOwner,
+  allocate,
   ReportFormatError,
   UNASSIGNED,
   type ParsedReport,
 } from '@/lib/revenue/report';
+
+const RATE_KEY = 'lsr-revenue-rate-v1';
 
 // The uploaded CSV is read with FileReader and parsed in this component. It is never POSTed
 // anywhere — no fetch, no server action, no DB. Keep it that way: this file holds real payout data.
@@ -41,7 +44,23 @@ export default function RevenueClient() {
   const [newOwner, setNewOwner] = useState('');
   const [bulkOwner, setBulkOwner] = useState('');
   const [copied, setCopied] = useState(false);
+  // Thai bank FX boards quote yen per 100 (e.g. "JPY 100 = 23.15 THB"), so take the rate in the
+  // same shape the user is reading off their bank, rather than making them convert first.
+  const [rate, setRate] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    try { setRate(localStorage.getItem(RATE_KEY) ?? ''); } catch {}
+  }, []);
+
+  function updateRate(v: string) {
+    setRate(v);
+    try { localStorage.setItem(RATE_KEY, v); } catch {}
+  }
+
+  const rateNum = Number(rate);
+  const rateOk = rate.trim() !== '' && Number.isFinite(rateNum) && rateNum > 0;
 
   const colorOf = useCallback(
     (name: string) => OWNER_COLORS[owners.indexOf(name) % OWNER_COLORS.length] ?? OWNER_COLORS[0],
@@ -71,6 +90,22 @@ export default function RevenueClient() {
     return splitByOwner(report.items, ownerOf, report);
   }, [report, loaded, ownerOf]);
 
+  // Per-owner THB, converted from the JPY each owner is owed. Worked in satang (integer) and
+  // allocated with the same largest-remainder pass as the JPY column, so the THB parts add up to
+  // the THB total exactly instead of drifting a few satang apart from rounding each row alone.
+  const thbParts = useMemo(() => {
+    if (!split || !rateOk) return null;
+    const totalJpy = split.shares.reduce((a, s) => a + (s.afterTax ?? 0), 0);
+    if (!totalJpy || split.shares.every((s) => s.afterTax == null)) return null;
+    const totalSatang = Math.round(totalJpy * (rateNum / 100) * 100);
+    return allocate(totalSatang, split.shares.map((s) => s.afterTax ?? 0));
+  }, [split, rateOk, rateNum]);
+
+  const thb = (satang: number | undefined) =>
+    satang == null
+      ? '—'
+      : (satang / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   const currency = report?.currency ?? null;
   const unassignedIds = useMemo(
     () => (report ? report.items.filter((i) => !ownerOf(i.itemId)).map((i) => i.itemId) : []),
@@ -86,15 +121,25 @@ export default function RevenueClient() {
       ['Total revenue share', String(report.rowTotal)],
       ['Withholding tax rate', report.footer.withholdingTaxRate != null ? `${report.footer.withholdingTaxRate}%` : ''],
       ['Amount payable', String(report.footer.amountPayable ?? '')],
+      ['Exchange rate used', rateOk ? `100 JPY = ${rateNum} THB` : 'not set'],
       [],
-      ['Owner', 'Packs', 'Sales counts', 'Revenue share (pre-tax)', 'Share %', 'After tax'],
-      ...split.shares.map((s) => [
+      [
+        'Owner',
+        'Packs',
+        'Sales counts',
+        'Revenue share pre-tax (JPY)',
+        'Share %',
+        'After tax (JPY)',
+        'After tax (THB)',
+      ],
+      ...split.shares.map((s, i) => [
         s.owner === UNASSIGNED ? 'UNASSIGNED' : s.owner,
         String(s.items),
         String(s.counts),
         String(s.pretax),
         s.pct.toFixed(2),
         s.afterTax != null ? String(s.afterTax) : '',
+        thbParts?.[i] != null ? (thbParts[i] / 100).toFixed(2) : '',
       ]),
     ];
     // Quote anything containing a comma/quote so the export re-imports cleanly into Sheets/Excel.
@@ -425,6 +470,29 @@ export default function RevenueClient() {
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+                <label htmlFor="fx" className="text-xs text-gray-500">
+                  Exchange rate: <span className="font-medium text-gray-700">100 JPY</span> =
+                </label>
+                <input
+                  id="fx"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={rate}
+                  onChange={(e) => updateRate(e.target.value)}
+                  placeholder="23.15"
+                  className="w-24 px-2 py-1 rounded-lg border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm bg-white text-gray-900 placeholder:text-gray-300"
+                />
+                <span className="text-xs text-gray-500">THB</span>
+                <span className="text-[11px] text-gray-400">
+                  {rateOk
+                    ? 'Use the rate your bank actually gave you, so the THB column matches the money that landed.'
+                    : 'Enter a rate to fill the THB column.'}
+                </span>
+              </div>
+
               {split.unassignedCount > 0 && (
                 <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mt-3">
                   ⚠ {split.unassignedCount === 1
@@ -442,12 +510,13 @@ export default function RevenueClient() {
                       <th className="text-right font-medium py-2">Packs</th>
                       <th className="text-right font-medium py-2 hidden sm:table-cell">Sales</th>
                       <th className="text-right font-medium py-2">Share</th>
-                      <th className="text-right font-medium py-2">Pre-tax</th>
-                      <th className="text-right font-medium py-2">After tax</th>
+                      <th className="text-right font-medium py-2 whitespace-nowrap">Pre-tax (JPY)</th>
+                      <th className="text-right font-medium py-2 whitespace-nowrap">After tax (JPY)</th>
+                      <th className="text-right font-medium py-2 whitespace-nowrap">After tax (THB)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {split.shares.map((s) => {
+                    {split.shares.map((s, i) => {
                       const isUn = s.owner === UNASSIGNED;
                       return (
                         <tr key={s.owner} className={isUn ? 'bg-amber-50/50' : ''}>
@@ -465,6 +534,7 @@ export default function RevenueClient() {
                           <td className="text-right text-gray-500 text-xs">{s.pct.toFixed(1)}%</td>
                           <td className="text-right text-gray-700">{money(s.pretax, null)}</td>
                           <td className="text-right font-bold text-green-700">{money(s.afterTax, null)}</td>
+                          <td className="text-right font-bold text-gray-700">{thb(thbParts?.[i])}</td>
                         </tr>
                       );
                     })}
@@ -488,16 +558,21 @@ export default function RevenueClient() {
                             )
                           : '—'}
                       </td>
+                      <td className="text-right text-gray-700">
+                        {thbParts ? thb(thbParts.reduce((a, b) => a + b, 0)) : '—'}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
 
               <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
-                {currency && `Amounts in ${currency}. `}
+                LINE pays in JPY.{' '}
                 {split.exact
                   ? 'After-tax figures split the report’s Amount Payable and add up to it exactly.'
                   : 'After-tax figures are estimated by applying the withholding rate, because this file’s rows do not add up to its stated total.'}
+                {rateOk &&
+                  ` THB is converted at 100 JPY = ${rateNum} THB and also adds up exactly, but it is only as accurate as that rate — your bank’s rate on payout day is the one that decides what actually arrives.`}
               </p>
             </section>
 
