@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect, Fragment } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -50,6 +50,9 @@ export default function RevenueClient() {
   const [copied, setCopied] = useState(false);
   // THB per 1 JPY (e.g. 0.2315). Thai FX boards quote yen per 100, so divide theirs by 100.
   const [rate, setRate] = useState('');
+  // Owners whose pack breakdown is expanded. Keyed by owner name, so a row stays open while you
+  // reassign packs around it.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,6 +67,14 @@ export default function RevenueClient() {
 
   const rateNum = Number(rate);
   const rateOk = rate.trim() !== '' && Number.isFinite(rateNum) && rateNum > 0;
+
+  const toggleOwner = useCallback((owner: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(owner)) next.add(owner);
+      return next;
+    });
+  }, []);
 
   const colorOf = useCallback(
     (name: string) => OWNER_COLORS[owners.indexOf(name) % OWNER_COLORS.length] ?? OWNER_COLORS[0],
@@ -442,24 +453,88 @@ export default function RevenueClient() {
                   <tbody className="divide-y divide-gray-50">
                     {split.shares.map((s, i) => {
                       const isUn = s.owner === UNASSIGNED;
+                      const open = expanded.has(s.owner);
                       return (
-                        <tr key={s.owner} className={isUn ? 'bg-amber-50/50' : ''}>
-                          <td className="py-2.5">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                isUn ? 'bg-amber-50 text-amber-700 border-amber-200' : colorOf(s.owner)
-                              }`}
-                            >
-                              {isUn ? 'Unassigned' : s.owner}
-                            </span>
-                          </td>
-                          <td className="text-right text-gray-500 text-xs">{s.items}</td>
-                          <td className="text-right text-gray-500 text-xs hidden sm:table-cell">{s.counts}</td>
-                          <td className="text-right text-gray-500 text-xs">{s.pct.toFixed(1)}%</td>
-                          <td className="text-right text-gray-700">{money(s.pretax, null)}</td>
-                          <td className="text-right font-bold text-green-700">{money(s.afterTax, null)}</td>
-                          <td className="text-right font-bold text-gray-700">{thb(thbParts?.[i])}</td>
-                        </tr>
+                        <Fragment key={s.owner}>
+                          <tr className={isUn ? 'bg-amber-50/50' : ''}>
+                            <td className="py-2.5">
+                              <button
+                                onClick={() => toggleOwner(s.owner)}
+                                aria-expanded={open}
+                                title={open ? 'Hide packs' : 'Show packs, biggest earner first'}
+                                className="flex items-center gap-1.5 group"
+                              >
+                                <span
+                                  className={`text-[9px] text-gray-400 group-hover:text-gray-600 transition-transform ${
+                                    open ? 'rotate-90' : ''
+                                  }`}
+                                  aria-hidden
+                                >
+                                  ▶
+                                </span>
+                                <span
+                                  className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                    isUn ? 'bg-amber-50 text-amber-700 border-amber-200' : colorOf(s.owner)
+                                  }`}
+                                >
+                                  {isUn ? 'Unassigned' : s.owner}
+                                </span>
+                              </button>
+                            </td>
+                            <td className="text-right text-gray-500 text-xs">{s.items}</td>
+                            <td className="text-right text-gray-500 text-xs hidden sm:table-cell">{s.counts}</td>
+                            <td className="text-right text-gray-500 text-xs">{s.pct.toFixed(1)}%</td>
+                            <td className="text-right text-gray-700">{money(s.pretax, null)}</td>
+                            <td className="text-right font-bold text-green-700">{money(s.afterTax, null)}</td>
+                            <td className="text-right font-bold text-gray-700">{thb(thbParts?.[i])}</td>
+                          </tr>
+
+                          {open && (
+                            <tr className={isUn ? 'bg-amber-50/30' : 'bg-gray-50/60'}>
+                              <td colSpan={7} className="px-3 py-2">
+                                <ol className="space-y-1">
+                                  {s.packs.map((p, n) => (
+                                    <li key={p.itemId} className="flex items-center gap-2.5 text-xs">
+                                      <span className="w-5 text-right text-gray-400 tabular-nums flex-shrink-0">
+                                        {n + 1}
+                                      </span>
+                                      <span className="w-7 h-7 rounded bg-white border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                        {p.type === 'Sticker' ? (
+                                          <Image
+                                            src={`https://stickershop.line-scdn.net/stickershop/v1/product/${p.itemId}/LINEStorePC/main.png`}
+                                            alt=""
+                                            width={28}
+                                            height={28}
+                                            unoptimized
+                                            className="object-contain w-full h-full"
+                                            onError={(e) => {
+                                              (e.target as HTMLImageElement).style.visibility = 'hidden';
+                                            }}
+                                          />
+                                        ) : (
+                                          <span className="text-[8px] text-gray-300">{p.type.slice(0, 2)}</span>
+                                        )}
+                                      </span>
+                                      <span className="flex-1 min-w-0 truncate text-gray-700" title={p.title}>
+                                        {p.title}
+                                      </span>
+                                      <span className="text-gray-400 tabular-nums flex-shrink-0 hidden sm:inline">
+                                        {s.pretax > 0 ? `${((p.revenue / s.pretax) * 100).toFixed(1)}%` : '—'}
+                                      </span>
+                                      <span className="w-24 text-right font-medium text-gray-700 tabular-nums flex-shrink-0">
+                                        {money(p.revenue, null)}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ol>
+                                <p className="text-[10px] text-gray-400 mt-2 pl-7">
+                                  Pre-tax JPY per pack, biggest earner first. Percentages are of{' '}
+                                  {isUn ? 'the unassigned total' : `${s.owner}’s total`}.
+                                </p>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>

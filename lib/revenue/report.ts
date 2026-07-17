@@ -299,6 +299,8 @@ export interface OwnerShare {
   pretax: number;
   afterTax: number | null;
   pct: number;
+  /** This owner's packs, biggest earner first — drives the expandable breakdown. */
+  packs: ReportItem[];
 }
 
 export const UNASSIGNED = '__unassigned__';
@@ -334,13 +336,18 @@ export function splitByOwner(
 
     let b = buckets.get(owner);
     if (!b) {
-      b = { owner, items: 0, counts: 0, pretax: 0, afterTax: null, pct: 0 };
+      b = { owner, items: 0, counts: 0, pretax: 0, afterTax: null, pct: 0, packs: [] };
       buckets.set(owner, b);
     }
     b.items++;
     b.counts += it.counts;
     b.pretax += it.revenue;
+    b.packs.push(it);
   }
+
+  // Sorted here rather than inherited from the caller's ordering, so the breakdown is
+  // biggest-earner-first regardless of what order items arrive in.
+  for (const b of buckets.values()) b.packs.sort((x, y) => y.revenue - x.revenue);
 
   // Unassigned always sits last; real owners rank by size.
   const shares = [...buckets.values()].sort((a, b) => {
