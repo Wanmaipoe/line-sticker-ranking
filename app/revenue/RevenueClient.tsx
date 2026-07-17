@@ -14,7 +14,11 @@ import {
   type ParsedReport,
 } from '@/lib/revenue/report';
 
-const RATE_KEY = 'lsr-revenue-rate-v1';
+// v2 = THB per 1 JPY. v1 stored THB per 100 JPY, so reusing the key would silently reread a saved
+// "23.15" as 23.15 THB/yen and overstate every THB figure 100x, with nothing to flag it. Bumping
+// the key drops the stale value and asks for the rate again — the only safe migration for a number
+// whose units changed.
+const RATE_KEY = 'lsr-revenue-rate-v2';
 
 // The uploaded CSV is read with FileReader and parsed in this component. It is never POSTed
 // anywhere — no fetch, no server action, no DB. Keep it that way: this file holds real payout data.
@@ -44,8 +48,7 @@ export default function RevenueClient() {
   const [newOwner, setNewOwner] = useState('');
   const [bulkOwner, setBulkOwner] = useState('');
   const [copied, setCopied] = useState(false);
-  // Thai bank FX boards quote yen per 100 (e.g. "JPY 100 = 23.15 THB"), so take the rate in the
-  // same shape the user is reading off their bank, rather than making them convert first.
+  // THB per 1 JPY (e.g. 0.2315). Thai FX boards quote yen per 100, so divide theirs by 100.
   const [rate, setRate] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -97,7 +100,7 @@ export default function RevenueClient() {
     if (!split || !rateOk) return null;
     const totalJpy = split.shares.reduce((a, s) => a + (s.afterTax ?? 0), 0);
     if (!totalJpy || split.shares.every((s) => s.afterTax == null)) return null;
-    const totalSatang = Math.round(totalJpy * (rateNum / 100) * 100);
+    const totalSatang = Math.round(totalJpy * rateNum * 100);
     return allocate(totalSatang, split.shares.map((s) => s.afterTax ?? 0));
   }, [split, rateOk, rateNum]);
 
@@ -121,7 +124,7 @@ export default function RevenueClient() {
       ['Total revenue share', String(report.rowTotal)],
       ['Withholding tax rate', report.footer.withholdingTaxRate != null ? `${report.footer.withholdingTaxRate}%` : ''],
       ['Amount payable', String(report.footer.amountPayable ?? '')],
-      ['Exchange rate used', rateOk ? `100 JPY = ${rateNum} THB` : 'not set'],
+      ['Exchange rate used', rateOk ? `1 JPY = ${rateNum} THB` : 'not set'],
       [],
       [
         'Owner',
@@ -369,88 +372,9 @@ export default function RevenueClient() {
               )}
             </section>
 
-            {/* Assign */}
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <h2 className="font-bold text-gray-700">Assign an owner to each pack</h2>
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    split.unassignedCount
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                      : 'bg-green-50 text-green-700 border border-green-200'
-                  }`}
-                >
-                  {split.unassignedCount
-                    ? `${split.unassignedCount} left`
-                    : `All ${report.items.length} assigned`}
-                </span>
-              </div>
-
-              <div className="mt-4 divide-y divide-gray-50">
-                {report.items.map((it) => {
-                  const owner = ownerOf(it.itemId);
-                  return (
-                    <div key={it.itemId} className="py-3 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 flex items-center justify-center">
-                        {it.type === 'Sticker' ? (
-                          <Image
-                            src={`https://stickershop.line-scdn.net/stickershop/v1/product/${it.itemId}/LINEStorePC/main.png`}
-                            alt=""
-                            width={40}
-                            height={40}
-                            unoptimized
-                            className="object-contain w-full h-full"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.visibility = 'hidden';
-                            }}
-                          />
-                        ) : (
-                          <span className="text-xs text-gray-300">{it.type.slice(0, 2)}</span>
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-700 truncate">{it.title}</p>
-                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                          <span className="text-[11px] text-gray-400">ID {it.itemId}</span>
-                          {it.byCountry.map((c) => (
-                            <span
-                              key={c.country}
-                              className="text-[10px] text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5"
-                              title={`${c.country}: ${money(c.revenue, currency)} from ${c.counts} sales`}
-                            >
-                              {c.country} {c.revenue.toLocaleString()}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="text-right flex-shrink-0 hidden sm:block">
-                        <p className="text-sm font-bold text-gray-700">{money(it.revenue, null)}</p>
-                        <p className="text-[11px] text-gray-400">{it.counts} sales</p>
-                      </div>
-
-                      <select
-                        value={owner ?? ''}
-                        onChange={(e) => assign(it.itemId, e.target.value || null)}
-                        className={`text-xs rounded-lg border px-2 py-1.5 flex-shrink-0 max-w-[9rem] ${
-                          owner ? colorOf(owner) : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}
-                      >
-                        <option value="">Unassigned</option>
-                        {owners.map((o) => (
-                          <option key={o} value={o}>
-                            {o}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Result */}
+            {/* Result — deliberately ABOVE the per-pack list: it's the answer you came for, and
+                the assignment list runs to ~90 rows, so burying the totals under it means
+                scrolling past everything to see whether the split moved. */}
             <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <h2 className="font-bold text-gray-700">Revenue sharing</h2>
@@ -472,17 +396,17 @@ export default function RevenueClient() {
 
               <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
                 <label htmlFor="fx" className="text-xs text-gray-500">
-                  Exchange rate: <span className="font-medium text-gray-700">100 JPY</span> =
+                  Exchange rate: <span className="font-medium text-gray-700">1 JPY</span> =
                 </label>
                 <input
                   id="fx"
                   type="number"
                   inputMode="decimal"
-                  step="0.01"
+                  step="0.0001"
                   min="0"
                   value={rate}
                   onChange={(e) => updateRate(e.target.value)}
-                  placeholder="23.15"
+                  placeholder="0.2315"
                   className="w-24 px-2 py-1 rounded-lg border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm bg-white text-gray-900 placeholder:text-gray-300"
                 />
                 <span className="text-xs text-gray-500">THB</span>
@@ -572,8 +496,89 @@ export default function RevenueClient() {
                   ? 'After-tax figures split the report’s Amount Payable and add up to it exactly.'
                   : 'After-tax figures are estimated by applying the withholding rate, because this file’s rows do not add up to its stated total.'}
                 {rateOk &&
-                  ` THB is converted at 100 JPY = ${rateNum} THB and also adds up exactly, but it is only as accurate as that rate — your bank’s rate on payout day is the one that decides what actually arrives.`}
+                  ` THB is converted at 1 JPY = ${rateNum} THB and also adds up exactly, but it is only as accurate as that rate — your bank’s rate on payout day is the one that decides what actually arrives.`}
               </p>
+            </section>
+
+            {/* Assign */}
+            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h2 className="font-bold text-gray-700">Assign an owner to each pack</h2>
+                <span
+                  className={`text-xs px-2 py-1 rounded-full ${
+                    split.unassignedCount
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-green-50 text-green-700 border border-green-200'
+                  }`}
+                >
+                  {split.unassignedCount
+                    ? `${split.unassignedCount} left`
+                    : `All ${report.items.length} assigned`}
+                </span>
+              </div>
+
+              <div className="mt-4 divide-y divide-gray-50">
+                {report.items.map((it) => {
+                  const owner = ownerOf(it.itemId);
+                  return (
+                    <div key={it.itemId} className="py-3 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 flex items-center justify-center">
+                        {it.type === 'Sticker' ? (
+                          <Image
+                            src={`https://stickershop.line-scdn.net/stickershop/v1/product/${it.itemId}/LINEStorePC/main.png`}
+                            alt=""
+                            width={40}
+                            height={40}
+                            unoptimized
+                            className="object-contain w-full h-full"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.visibility = 'hidden';
+                            }}
+                          />
+                        ) : (
+                          <span className="text-xs text-gray-300">{it.type.slice(0, 2)}</span>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700 truncate">{it.title}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="text-[11px] text-gray-400">ID {it.itemId}</span>
+                          {it.byCountry.map((c) => (
+                            <span
+                              key={c.country}
+                              className="text-[10px] text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5"
+                              title={`${c.country}: ${money(c.revenue, currency)} from ${c.counts} sales`}
+                            >
+                              {c.country} {c.revenue.toLocaleString()}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="text-right flex-shrink-0 hidden sm:block">
+                        <p className="text-sm font-bold text-gray-700">{money(it.revenue, null)}</p>
+                        <p className="text-[11px] text-gray-400">{it.counts} sales</p>
+                      </div>
+
+                      <select
+                        value={owner ?? ''}
+                        onChange={(e) => assign(it.itemId, e.target.value || null)}
+                        className={`text-xs rounded-lg border px-2 py-1.5 flex-shrink-0 max-w-[9rem] ${
+                          owner ? colorOf(owner) : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}
+                      >
+                        <option value="">Unassigned</option>
+                        {owners.map((o) => (
+                          <option key={o} value={o}>
+                            {o}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
             </section>
 
             <div className="text-center pb-4">
