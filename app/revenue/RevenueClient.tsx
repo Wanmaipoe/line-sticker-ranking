@@ -211,10 +211,17 @@ export default function RevenueClient() {
       // 0, not undefined: an owner with no packs that month genuinely earned nothing, and a gap
       // in the line would read as "no data" instead.
       for (const o of chartOwners) row[o] = 0;
-      for (const s of m.split.shares) row[s.owner] = s.afterTax ?? 0;
+      // THB when a rate is set (what the team actually pays out in); JPY otherwise. A constant
+      // rate scales every point identically, so the trend shape is the same either way.
+      for (const s of m.split.shares) {
+        const jpy = s.afterTax ?? 0;
+        row[s.owner] = rateOk ? Math.round(jpy * rateNum) : jpy;
+      }
       return row;
     });
-  }, [monthlySplits, chartOwners]);
+  }, [monthlySplits, chartOwners, rateOk, rateNum]);
+
+  const chartCurrency = rateOk ? 'THB' : 'JPY';
 
   // Per-owner THB, converted from the JPY each owner is owed. Worked in satang (integer) and
   // allocated with the same largest-remainder pass as the JPY column, so the THB parts add up to
@@ -551,13 +558,16 @@ export default function RevenueClient() {
               )}
             </section>
 
-            {/* Trend — only meaningful with more than one month, and always in JPY: LINE pays yen,
-                and one FX rate across many months would bend the older points. */}
+            {/* Trend — only meaningful with more than one month. THB once a rate is entered
+                (that's the money the team splits); JPY until then rather than an empty chart. */}
             {chartData && chartData.length > 1 && (
               <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                 <div className="flex items-baseline justify-between gap-2 flex-wrap">
                   <h2 className="font-bold text-gray-700">Income by owner</h2>
-                  <span className="text-xs text-gray-400">After-tax JPY per month</span>
+                  <span className="text-xs text-gray-400">
+                    After-tax {chartCurrency} per month
+                    {!rateOk && ' — enter an exchange rate above to see this in THB'}
+                  </span>
                 </div>
 
                 {/* Numeric height, matching RankGraph: ResponsiveContainer with height="100%"
@@ -581,12 +591,13 @@ export default function RevenueClient() {
                       />
                       <Tooltip
                         formatter={(value, name) => {
+                          // Chart values are already in chartCurrency (THB when a rate is set).
                           const v = typeof value === 'number' ? value : Number(value ?? 0);
-                          const thbSuffix = rateOk
-                            ? ` · ${(v * rateNum).toLocaleString(undefined, { maximumFractionDigits: 0 })} THB`
+                          const jpyBack = rateOk
+                            ? ` · ${Math.round(v / rateNum).toLocaleString()} JPY`
                             : '';
                           return [
-                            `${Math.round(v).toLocaleString()} JPY${thbSuffix}`,
+                            `${Math.round(v).toLocaleString()} ${chartCurrency}${jpyBack}`,
                             String(name) === UNASSIGNED ? 'Unassigned' : String(name),
                           ];
                         }}
@@ -624,6 +635,8 @@ export default function RevenueClient() {
                 <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
                   Each line is one owner&apos;s after-tax share for that month, using your current
                   owner assignments applied to every month. Unassigned packs are the dashed line.
+                  {rateOk &&
+                    ` THB is converted at 1 JPY = ${rateNum} for every month, so older months are estimates — each month really settled at its own rate.`}
                 </p>
               </section>
             )}
