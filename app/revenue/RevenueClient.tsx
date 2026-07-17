@@ -6,13 +6,36 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useOwnerMap } from '@/hooks/useOwnerMap';
 import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import {
   parseLineReport,
   splitByOwner,
   allocate,
+  combineReports,
+  periodKey,
+  periodLabel,
   ReportFormatError,
   UNASSIGNED,
   type ParsedReport,
 } from '@/lib/revenue/report';
+
+/** One uploaded month, keyed by the period it covers so re-uploading a month replaces it. */
+interface LoadedMonth {
+  key: string;
+  label: string;
+  fileName: string;
+  report: ParsedReport;
+}
+
+const ALL = '__all__';
 
 // v2 = THB per 1 JPY. v1 stored THB per 100 JPY, so reusing the key would silently reread a saved
 // "23.15" as 23.15 THB/yen and overstate every THB figure 100x, with nothing to flag it. Bumping
@@ -37,12 +60,25 @@ const OWNER_COLORS = [
   'bg-cyan-50 text-cyan-700 border-cyan-200',
 ];
 
+// Same hues as OWNER_COLORS, in the same order, so an owner's chip and their chart line match.
+// Recharts needs real colour values, not Tailwind class names.
+const OWNER_HEX = ['#16a34a', '#2563eb', '#9333ea', '#d97706', '#db2777', '#0891b2'];
+const UNASSIGNED_HEX = '#a8a29e';
+
+/** 528925 -> "529k", so the Y axis doesn't need six digits per tick. */
+function compact(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (a >= 1_000) return `${Math.round(v / 1_000)}k`;
+  return String(v);
+}
+
 export default function RevenueClient() {
   const router = useRouter();
   const { owners, loaded, ownerOf, assign, assignMany, addOwner, removeOwner, clearAll } = useOwnerMap();
 
-  const [report, setReport] = useState<ParsedReport | null>(null);
-  const [fileName, setFileName] = useState('');
+  const [months, setMonths] = useState<LoadedMonth[]>([]);
+  const [selected, setSelected] = useState<string>(ALL);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [newOwner, setNewOwner] = useState('');
@@ -81,28 +117,104 @@ export default function RevenueClient() {
     [owners]
   );
 
-  const loadFile = useCallback(async (file: File) => {
+  /** Chart line colour for an owner — same index as their chip, so the two always agree. */
+  const hexOf = useCallback(
+    (name: string) => {
+      if (name === UNASSIGNED) return UNASSIGNED_HEX;
+      const i = owners.indexOf(name);
+      return i < 0 ? UNASSIGNED_HEX : OWNER_HEX[i % OWNER_HEX.length];
+    },
+    [owners]
+  );
+
+  /**
+   * Load one or more monthly reports. A file that fails to parse is reported by name and skipped
+   * rather than throwing away the months that did load — dropping five good files because the
+   * sixth was the wrong CSV would be maddening.
+   */
+  const loadFiles = useCallback(async (files: File[]) => {
     setError(null);
     setCopied(false);
-    try {
-      const text = await file.text();
-      setReport(parseLineReport(text));
-      setFileName(file.name);
-    } catch (e) {
-      setReport(null);
-      setFileName('');
-      setError(
-        e instanceof ReportFormatError
-          ? e.message
-          : 'Could not read that file. Make sure it is the .csv you downloaded from LINE Creators Market.'
-      );
+    const parsed: LoadedMonth[] = [];
+    const failed: string[] = [];
+
+    for (const file of files) {
+      try {
+        const report = parseLineReport(await file.text());
+        const key = periodKey(report);
+        parsed.push({ key, label: periodLabel(key), fileName: file.name, report });
+      } catch (e) {
+        failed.push(`${file.name}: ${e instanceof ReportFormatError ? e.message : 'unreadable'}`);
+      }
     }
+
+    if (parsed.length) {
+      setMonths((prev) => {
+        const byKey = new Map(prev.map((m) => [m.key, m]));
+        for (const m of parsed) byKey.set(m.key, m); // re-uploading a month replaces it
+        return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
+      });
+    }
+    if (failed.length) setError(`Skipped ${failed.length} file(s) — ${failed.join('; ')}`);
   }, []);
+
+  const removeMonth = useCallback((key: string) => {
+    setMonths((prev) => prev.filter((m) => m.key !== key));
+    setSelected((s) => (s === key ? ALL : s));
+  }, []);
+
+  // What the table renders: one month, or every month folded together.
+  const report = useMemo(() => {
+    if (!months.length) return null;
+    if (selected !== ALL) return months.find((m) => m.key === selected)?.report ?? null;
+    return combineReports(months.map((m) => m.report));
+  }, [months, selected]);
 
   const split = useMemo(() => {
     if (!report || !loaded) return null;
     return splitByOwner(report.items, ownerOf, report);
   }, [report, loaded, ownerOf]);
+
+  // Each month split on its own — the chart's series. Kept separate from `split` because the
+  // combined view deliberately loses the month axis.
+  const monthlySplits = useMemo(() => {
+    if (!loaded || months.length < 2) return null;
+    return months.map((m) => ({
+      key: m.key,
+      label: m.label,
+      split: splitByOwner(m.report.items, ownerOf, m.report),
+    }));
+  }, [months, loaded, ownerOf]);
+
+  /** Owners appearing in any loaded month, ordered by total earnings so the legend leads with the biggest. */
+  const chartOwners = useMemo(() => {
+    if (!monthlySplits) return [];
+    const totals = new Map<string, number>();
+    for (const m of monthlySplits) {
+      for (const s of m.split.shares) {
+        totals.set(s.owner, (totals.get(s.owner) ?? 0) + (s.afterTax ?? 0));
+      }
+    }
+    return [...totals.entries()]
+      .sort((a, b) => {
+        if (a[0] === UNASSIGNED) return 1;
+        if (b[0] === UNASSIGNED) return -1;
+        return b[1] - a[1];
+      })
+      .map(([o]) => o);
+  }, [monthlySplits]);
+
+  const chartData = useMemo(() => {
+    if (!monthlySplits) return null;
+    return monthlySplits.map((m) => {
+      const row: Record<string, string | number> = { month: m.label };
+      // 0, not undefined: an owner with no packs that month genuinely earned nothing, and a gap
+      // in the line would read as "no data" instead.
+      for (const o of chartOwners) row[o] = 0;
+      for (const s of m.split.shares) row[s.owner] = s.afterTax ?? 0;
+      return row;
+    });
+  }, [monthlySplits, chartOwners]);
 
   // Per-owner THB, converted from the JPY each owner is owed. Worked in satang (integer) and
   // allocated with the same largest-remainder pass as the JPY column, so the THB parts add up to
@@ -229,41 +341,83 @@ export default function RevenueClient() {
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
-            const f = e.dataTransfer.files?.[0];
-            if (f) loadFile(f);
+            const f = Array.from(e.dataTransfer.files ?? []);
+            if (f.length) loadFiles(f);
           }}
           className={`bg-white rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
             dragging ? 'border-[#06c755] bg-green-50/40' : 'border-gray-200'
           }`}
         >
           <p className="text-sm font-medium text-gray-700">
-            {report ? 'Upload a different report' : 'Upload your LINE revenue report'}
+            {months.length ? 'Add more months' : 'Upload your LINE revenue reports'}
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            Drag the .csv here, or{' '}
+            Drag one or more .csv files here, or{' '}
             <button onClick={() => fileRef.current?.click()} className="text-green-600 hover:underline">
-              choose a file
+              choose files
             </button>
-            . It is read in your browser and never uploaded.
+            . They are read in your browser and never uploaded.
           </p>
           <input
             ref={fileRef}
             type="file"
             accept=".csv,text/csv"
+            multiple
             className="hidden"
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) loadFile(f);
+              const f = Array.from(e.target.files ?? []);
+              if (f.length) loadFiles(f);
               e.target.value = ''; // let the same file be re-picked after a fix
             }}
           />
-          {fileName && <p className="text-xs text-gray-500 mt-2">Loaded: {fileName}</p>}
+
+          {months.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-1.5 mt-4">
+              {months.map((m) => (
+                <span
+                  key={m.key}
+                  title={m.fileName}
+                  className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full text-[11px] font-medium bg-gray-50 text-gray-600 border border-gray-200"
+                >
+                  {m.label}
+                  <button
+                    onClick={() => removeMonth(m.key)}
+                    className="w-4 h-4 rounded-full hover:bg-black/10 leading-none text-gray-400"
+                    title={`Remove ${m.label}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           {error && (
             <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 mt-3 text-left">
               {error}
             </p>
           )}
         </section>
+
+        {/* Month selector — only earns its space once there's more than one month. */}
+        {months.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-gray-400 mr-1">Showing</span>
+            {[{ key: ALL, label: `All ${months.length} months` }, ...months].map((m) => (
+              <button
+                key={m.key}
+                onClick={() => setSelected(m.key)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  selected === m.key
+                    ? 'bg-[#06c755] text-white border-[#06c755]'
+                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {report && split && (
           <>
@@ -397,6 +551,83 @@ export default function RevenueClient() {
               )}
             </section>
 
+            {/* Trend — only meaningful with more than one month, and always in JPY: LINE pays yen,
+                and one FX rate across many months would bend the older points. */}
+            {chartData && chartData.length > 1 && (
+              <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                  <h2 className="font-bold text-gray-700">Income by owner</h2>
+                  <span className="text-xs text-gray-400">After-tax JPY per month</span>
+                </div>
+
+                {/* Numeric height, matching RankGraph: ResponsiveContainer with height="100%"
+                    measured the wrapper at 8px here and drew nothing. */}
+                <div className="mt-4 -ml-2">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fontSize: 11, fill: '#94a3b8' }}
+                        axisLine={{ stroke: '#e2e8f0' }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tickFormatter={compact}
+                        tick={{ fontSize: 11, fill: '#94a3b8' }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={44}
+                      />
+                      <Tooltip
+                        formatter={(value, name) => {
+                          const v = typeof value === 'number' ? value : Number(value ?? 0);
+                          const thbSuffix = rateOk
+                            ? ` · ${(v * rateNum).toLocaleString(undefined, { maximumFractionDigits: 0 })} THB`
+                            : '';
+                          return [
+                            `${Math.round(v).toLocaleString()} JPY${thbSuffix}`,
+                            String(name) === UNASSIGNED ? 'Unassigned' : String(name),
+                          ];
+                        }}
+                        contentStyle={{
+                          fontSize: 12,
+                          borderRadius: 12,
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                        }}
+                      />
+                      <Legend
+                        formatter={(v: string) => (
+                          <span style={{ fontSize: 11, color: '#64748b' }}>
+                            {v === UNASSIGNED ? 'Unassigned' : v}
+                          </span>
+                        )}
+                      />
+                      {chartOwners.map((o) => (
+                        <Line
+                          key={o}
+                          type="monotone"
+                          dataKey={o}
+                          name={o}
+                          stroke={hexOf(o)}
+                          strokeWidth={2}
+                          strokeDasharray={o === UNASSIGNED ? '4 3' : undefined}
+                          dot={{ r: 3, strokeWidth: 0, fill: hexOf(o) }}
+                          activeDot={{ r: 5 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
+                  Each line is one owner&apos;s after-tax share for that month, using your current
+                  owner assignments applied to every month. Unassigned packs are the dashed line.
+                </p>
+              </section>
+            )}
+
             {/* Result — deliberately ABOVE the per-pack list: it's the answer you came for, and
                 the assignment list runs to ~90 rows, so burying the totals under it means
                 scrolling past everything to see whether the split moved. */}
@@ -437,7 +668,9 @@ export default function RevenueClient() {
                 <span className="text-xs text-gray-500">THB</span>
                 <span className="text-[11px] text-gray-400">
                   {rateOk
-                    ? 'Use the rate your bank actually gave you, so the THB column matches the money that landed.'
+                    ? months.length > 1
+                      ? 'This one rate is applied to every loaded month, so THB for older months is an estimate — each month really settled at its own rate.'
+                      : 'Use the rate your bank actually gave you, so the THB column matches the money that landed.'
                     : 'Enter a rate to fill the THB column.'}
                 </span>
               </div>

@@ -292,6 +292,113 @@ export function allocate(total: number, weights: number[]): number[] {
   return out;
 }
 
+/** "2026.06" — the month a report covers, from its first row's From date. */
+export function periodKey(r: ParsedReport): string {
+  return r.period ? r.period.from.slice(0, 7) : 'unknown';
+}
+
+/** "2026.06" -> "Jun 2026". Falls back to the raw key if it isn't a parseable year.month. */
+export function periodLabel(key: string): string {
+  const [y, m] = key.split('.').map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return key;
+  return new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'short', year: 'numeric' });
+}
+
+/**
+ * Fold several months into one report so the same table/split code can render a combined view.
+ * Packs are merged by Item ID across months, and every footer figure is summed rather than taken
+ * from one file.
+ *
+ * The withholding RATE is recomputed from the summed tax over the summed revenue instead of being
+ * copied: months can carry different rates, and averaging or picking one would misstate the tax on
+ * a combined total.
+ */
+export function combineReports(list: ParsedReport[]): ParsedReport {
+  if (!list.length) throw new ReportFormatError('No reports to combine.');
+  if (list.length === 1) return list[0];
+
+  const grouped = new Map<string, ReportItem>();
+  let rowTotal = 0;
+
+  for (const r of list) {
+    rowTotal += r.rowTotal;
+    for (const it of r.items) {
+      let m = grouped.get(it.itemId);
+      if (!m) {
+        m = { itemId: it.itemId, title: it.title, type: it.type, revenue: 0, counts: 0, byCountry: [] };
+        grouped.set(it.itemId, m);
+      }
+      m.revenue += it.revenue;
+      m.counts += it.counts;
+      for (const c of it.byCountry) {
+        const e = m.byCountry.find((x) => x.country === c.country);
+        if (e) {
+          e.revenue += c.revenue;
+          e.counts += c.counts;
+        } else m.byCountry.push({ ...c });
+      }
+    }
+  }
+
+  const items = [...grouped.values()].sort((a, b) => b.revenue - a.revenue);
+  for (const it of items) it.byCountry.sort((a, b) => b.revenue - a.revenue);
+
+  const sumOf = (pick: (f: ReportFooter) => number | null): number | null => {
+    let total = 0;
+    let seen = false;
+    for (const r of list) {
+      const v = pick(r.footer);
+      if (v != null) {
+        total += v;
+        seen = true;
+      }
+    }
+    return seen ? total : null;
+  };
+
+  const totalRevenueShare = sumOf((f) => f.totalRevenueShare);
+  const withholdingTaxAmount = sumOf((f) => f.withholdingTaxAmount);
+  const amountPayable = sumOf((f) => f.amountPayable);
+
+  const warnings = [...new Set(list.flatMap((r) => r.warnings))];
+
+  // Mixing two creators' reports would silently pool their money into one split.
+  const creatorIds = [...new Set(list.map((r) => r.footer.creatorId).filter(Boolean))];
+  if (creatorIds.length > 1) {
+    warnings.unshift(
+      `These files are from ${creatorIds.length} different Creator IDs (${creatorIds.join(', ')}). ` +
+        `Combining them pools separate creators' revenue — check you meant to.`
+    );
+  }
+
+  const froms = list.map((r) => r.period?.from).filter(Boolean) as string[];
+  const tos = list.map((r) => r.period?.to).filter(Boolean) as string[];
+
+  // Each source tolerates ±1 of rounding, so the combined tolerance scales with the file count.
+  const tiesOut =
+    totalRevenueShare != null && Math.abs(rowTotal - totalRevenueShare) <= list.length;
+
+  return {
+    items,
+    footer: {
+      creatorId: list[0].footer.creatorId,
+      residence: list[0].footer.residence,
+      totalRevenueShare,
+      withholdingTaxRate:
+        totalRevenueShare && withholdingTaxAmount != null && totalRevenueShare > 0
+          ? Number(((withholdingTaxAmount / totalRevenueShare) * 100).toFixed(2))
+          : null,
+      withholdingTaxAmount,
+      amountPayable,
+    },
+    period: froms.length && tos.length ? { from: froms.sort()[0], to: tos.sort().at(-1)! } : null,
+    rowTotal,
+    tiesOut,
+    currency: REPORT_CURRENCY,
+    warnings,
+  };
+}
+
 export interface OwnerShare {
   owner: string;
   items: number;
