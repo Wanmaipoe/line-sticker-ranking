@@ -556,7 +556,10 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
             href="/favorites"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-400 border border-gray-200 transition-colors"
           >
-            ♥ Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}
+            {/* ♥ is a text glyph, not a colour emoji, so it takes `color` directly — unlike the
+                padlock on the Revenue pill, which needs a grayscale filter. */}
+            <span className="text-red-500" aria-hidden>♥</span>
+            Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}
           </a>
           <a
             href="/creators"

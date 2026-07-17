@@ -154,7 +154,7 @@ export default function RevenueClient() {
       [
         'Owner',
         'Packs',
-        'Sales counts',
+        'Sale Count',
         'Revenue share pre-tax (JPY)',
         'Share %',
         'After tax (JPY)',
@@ -457,7 +457,9 @@ export default function RevenueClient() {
                     <tr className="text-[11px] text-gray-400 border-b border-gray-100">
                       <th className="text-left font-medium py-2">Owner</th>
                       <th className="text-right font-medium py-2">Packs</th>
-                      <th className="text-right font-medium py-2 hidden sm:table-cell">Sales</th>
+                      <th className="text-right font-medium py-2 hidden sm:table-cell whitespace-nowrap">
+                        Sale Count
+                      </th>
                       <th className="text-right font-medium py-2">Share</th>
                       <th className="text-right font-medium py-2 whitespace-nowrap">Pre-tax (JPY)</th>
                       <th className="text-right font-medium py-2 whitespace-nowrap">After tax (JPY)</th>

@@ -60,7 +60,9 @@ export default function FavoritesClient() {
 
         <div className="mt-5 mb-6 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-800">♥ Favorites</h1>
+            <h1 className="text-xl font-bold text-gray-800">
+              <span className="text-red-500" aria-hidden>♥</span> Favorites
+            </h1>
             <p className="text-sm text-gray-400 mt-1">
               {favorites.length} sticker pack{favorites.length !== 1 ? 's' : ''} saved on this device
             </p>
