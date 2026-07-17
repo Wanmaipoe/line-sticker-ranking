@@ -5,10 +5,25 @@ let _client: Client | null = null;
 
 export function getDb(): Client {
   if (_client) return _client;
-  _client = createClient({
-    url: process.env.TURSO_DATABASE_URL!,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
+
+  const url = process.env.TURSO_DATABASE_URL;
+  if (!url) {
+    // Deliberately fatal. `next build` prerenders /, /creators, /country/[code], /creator/[name]
+    // and /sticker/[id], all of which read the database, so a missing URL fails the deploy — which
+    // is right for a config error: shipping empty prerendered pages would hide it.
+    //
+    // What this replaces: `createClient({ url: process.env.TURSO_DATABASE_URL! })`. The `!` claimed
+    // the var was always set, so a missing one surfaced as libsql's "URL_INVALID: The URL
+    // 'undefined' is not in a valid format", thrown from client construction — outside the
+    // try/catch each page wraps its QUERIES in, and naming nothing that points at the real cause.
+    throw new Error(
+      'TURSO_DATABASE_URL is not set. Builds prerender pages that read the database, so it must ' +
+        'exist in the Vercel project env for Production and Preview (Settings > Environment ' +
+        'Variables), not only at runtime.'
+    );
+  }
+
+  _client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
   return _client;
 }
 
