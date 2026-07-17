@@ -115,6 +115,20 @@ export default function RevenueClient() {
     return allocate(totalSatang, split.shares.map((s) => s.afterTax ?? 0));
   }, [split, rateOk, rateNum]);
 
+  // Each owner's after-tax money, split again across their own packs by pre-tax weight, using the
+  // same largest-remainder pass. Lets the expanded rows fill every column of the parent table and
+  // still add up to the owner's row exactly, so the breakdown nests instead of merely sitting near.
+  const packBreakdown = useMemo(() => {
+    if (!split) return null;
+    return split.shares.map((s, i) => {
+      const weights = s.packs.map((p) => p.revenue);
+      return {
+        jpy: s.afterTax != null ? allocate(s.afterTax, weights) : null,
+        thb: thbParts?.[i] != null ? allocate(thbParts[i], weights) : null,
+      };
+    });
+  }, [split, thbParts]);
+
   const thb = (satang: number | undefined) =>
     satang == null
       ? '—'
@@ -489,51 +503,60 @@ export default function RevenueClient() {
                             <td className="text-right font-bold text-gray-700">{thb(thbParts?.[i])}</td>
                           </tr>
 
-                          {open && (
-                            <tr className={isUn ? 'bg-amber-50/30' : 'bg-gray-50/60'}>
-                              <td colSpan={7} className="px-3 py-2">
-                                <ol className="space-y-1">
-                                  {s.packs.map((p, n) => (
-                                    <li key={p.itemId} className="flex items-center gap-2.5 text-xs">
-                                      <span className="w-5 text-right text-gray-400 tabular-nums flex-shrink-0">
-                                        {n + 1}
-                                      </span>
-                                      <span className="w-7 h-7 rounded bg-white border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                        {p.type === 'Sticker' ? (
-                                          <Image
-                                            src={`https://stickershop.line-scdn.net/stickershop/v1/product/${p.itemId}/LINEStorePC/main.png`}
-                                            alt=""
-                                            width={28}
-                                            height={28}
-                                            unoptimized
-                                            className="object-contain w-full h-full"
-                                            onError={(e) => {
-                                              (e.target as HTMLImageElement).style.visibility = 'hidden';
-                                            }}
-                                          />
-                                        ) : (
-                                          <span className="text-[8px] text-gray-300">{p.type.slice(0, 2)}</span>
-                                        )}
-                                      </span>
-                                      <span className="flex-1 min-w-0 truncate text-gray-700" title={p.title}>
-                                        {p.title}
-                                      </span>
-                                      <span className="text-gray-400 tabular-nums flex-shrink-0 hidden sm:inline">
-                                        {s.pretax > 0 ? `${((p.revenue / s.pretax) * 100).toFixed(1)}%` : '—'}
-                                      </span>
-                                      <span className="w-24 text-right font-medium text-gray-700 tabular-nums flex-shrink-0">
-                                        {money(p.revenue, null)}
-                                      </span>
-                                    </li>
-                                  ))}
-                                </ol>
-                                <p className="text-[10px] text-gray-400 mt-2 pl-7">
-                                  Pre-tax JPY per pack, biggest earner first. Percentages are of{' '}
-                                  {isUn ? 'the unassigned total' : `${s.owner}’s total`}.
-                                </p>
-                              </td>
-                            </tr>
-                          )}
+                          {/* One real <tr> per pack, so every figure lands under the header it
+                              belongs to. Share is a slice of the WHOLE report, matching what the
+                              owner row above means by Share — a column has to mean one thing, or
+                              the child percentages quietly contradict the parent's. */}
+                          {open &&
+                            s.packs.map((p, n) => (
+                              <tr
+                                key={p.itemId}
+                                className={`text-xs ${isUn ? 'bg-amber-50/30' : 'bg-gray-50/60'}`}
+                              >
+                                <td className="py-1.5 pl-5">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="w-4 text-right text-[10px] text-gray-400 tabular-nums flex-shrink-0">
+                                      {n + 1}
+                                    </span>
+                                    <span className="w-6 h-6 rounded bg-white border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                      {p.type === 'Sticker' ? (
+                                        <Image
+                                          src={`https://stickershop.line-scdn.net/stickershop/v1/product/${p.itemId}/LINEStorePC/main.png`}
+                                          alt=""
+                                          width={24}
+                                          height={24}
+                                          unoptimized
+                                          className="object-contain w-full h-full"
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).style.visibility = 'hidden';
+                                          }}
+                                        />
+                                      ) : (
+                                        <span className="text-[8px] text-gray-300">{p.type.slice(0, 2)}</span>
+                                      )}
+                                    </span>
+                                    <span className="truncate text-gray-600" title={p.title}>
+                                      {p.title}
+                                    </span>
+                                  </div>
+                                </td>
+                                {/* Packs: a single pack has no count of its own. */}
+                                <td />
+                                <td className="text-right text-gray-400 hidden sm:table-cell">{p.counts}</td>
+                                <td className="text-right text-gray-400">
+                                  {report.rowTotal > 0
+                                    ? `${((p.revenue / report.rowTotal) * 100).toFixed(1)}%`
+                                    : '—'}
+                                </td>
+                                <td className="text-right text-gray-600">{money(p.revenue, null)}</td>
+                                <td className="text-right text-green-700/80">
+                                  {money(packBreakdown?.[i]?.jpy?.[n], null)}
+                                </td>
+                                <td className="text-right text-gray-600">
+                                  {thb(packBreakdown?.[i]?.thb?.[n])}
+                                </td>
+                              </tr>
+                            ))}
                         </Fragment>
                       );
                     })}
@@ -571,7 +594,9 @@ export default function RevenueClient() {
                   ? 'After-tax figures split the report’s Amount Payable and add up to it exactly.'
                   : 'After-tax figures are estimated by applying the withholding rate, because this file’s rows do not add up to its stated total.'}
                 {rateOk &&
-                  ` THB is converted at 1 JPY = ${rateNum} THB and also adds up exactly, but it is only as accurate as that rate — your bank’s rate on payout day is the one that decides what actually arrives.`}
+                  ` THB is converted at 1 JPY = ${rateNum} THB and also adds up exactly, but it is only as accurate as that rate — your bank’s rate on payout day is the one that decides what actually arrives.`}{' '}
+                Expand an owner (▶) to list their packs, biggest earner first; every column there
+                adds up to that owner’s row.
               </p>
             </section>
 

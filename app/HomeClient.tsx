@@ -408,9 +408,9 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
     <a
       href="/revenue"
       title="Revenue distribution (team only)"
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100/70 text-gray-400 border border-dashed border-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-colors"
     >
-      🔒 Revenue
+      <span className="opacity-70" aria-hidden>🔒</span> Revenue
     </a>
   );
 
