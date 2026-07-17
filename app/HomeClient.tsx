@@ -410,7 +410,10 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
       title="Revenue distribution (team only)"
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100/70 text-gray-400 border border-dashed border-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-colors"
     >
-      <span className="opacity-70" aria-hidden>🔒</span> Revenue
+      {/* 🔒 is a colour-emoji glyph, so `color` can't touch it and opacity alone just fades the
+          gold. grayscale(1) strips the saturation outright, leaving it achromatic to match the
+          muted text. */}
+      <span className="grayscale opacity-80" aria-hidden>🔒</span> Revenue
     </a>
   );
 
