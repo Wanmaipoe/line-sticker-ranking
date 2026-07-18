@@ -590,6 +590,11 @@ export default function RevenueClient() {
                         width={44}
                       />
                       <Tooltip
+                        // Highest earner for the hovered month on top. Recharts defaults to sorting
+                        // by name (alphabetical) — return -value so it ranks by that month's amount.
+                        itemSorter={(item) =>
+                          -(typeof item.value === 'number' ? item.value : Number(item.value ?? 0))
+                        }
                         formatter={(value, name) => {
                           // Chart values are already in chartCurrency (THB when a rate is set).
                           const v = typeof value === 'number' ? value : Number(value ?? 0);
@@ -609,6 +614,10 @@ export default function RevenueClient() {
                         }}
                       />
                       <Legend
+                        // null disables recharts' own sort, so the legend keeps the Line render
+                        // order — chartOwners, which is total-earnings descending. Biggest on the
+                        // left. (Its default reorders to alphabetical.)
+                        itemSorter={null}
                         formatter={(v: string) => (
                           <span style={{ fontSize: 11, color: '#64748b' }}>
                             {v === UNASSIGNED ? 'Unassigned' : v}
