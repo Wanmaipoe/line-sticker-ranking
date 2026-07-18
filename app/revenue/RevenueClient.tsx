@@ -596,13 +596,11 @@ export default function RevenueClient() {
                           -(typeof item.value === 'number' ? item.value : Number(item.value ?? 0))
                         }
                         formatter={(value, name) => {
-                          // Chart values are already in chartCurrency (THB when a rate is set).
+                          // Chart values are already in chartCurrency (THB when a rate is set, JPY
+                          // otherwise). Show just that one figure — the header already says which.
                           const v = typeof value === 'number' ? value : Number(value ?? 0);
-                          const jpyBack = rateOk
-                            ? ` · ${Math.round(v / rateNum).toLocaleString()} JPY`
-                            : '';
                           return [
-                            `${Math.round(v).toLocaleString()} ${chartCurrency}${jpyBack}`,
+                            `${Math.round(v).toLocaleString()} ${chartCurrency}`,
                             String(name) === UNASSIGNED ? 'Unassigned' : String(name),
                           ];
                         }}
