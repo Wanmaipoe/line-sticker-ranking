@@ -130,6 +130,45 @@ const FOOTER_KEYS: Record<string, keyof ReportFooter> = {
 
 export class ReportFormatError extends Error {}
 
+/** CSV-encode a grid, quoting any cell containing a comma, quote, or newline. CRLF for Excel. */
+function toCsv(rows: string[][]): string {
+  return rows
+    .map((r) => r.map((c) => (/[",\n\r]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(','))
+    .join('\r\n');
+}
+
+/**
+ * Re-emit an uploaded report's ORIGINAL rows verbatim with one extra column, 'Owner', on the end.
+ * The header row gets the literal 'Owner'; each data row (a row with a non-empty Item ID) gets the
+ * owner assigned to that Item ID, or 'Unassigned' if none; footer and blank padding rows get an
+ * empty cell. Every row is first padded out to the header's width, so the new column is always the
+ * last column in Excel/Sheets no matter how many cells the original row had (LINE's footer lines
+ * are only two columns wide). This is a faithful copy of the upload plus the annotation — nothing
+ * is dropped or reordered.
+ */
+export function appendOwnerColumn(
+  rawText: string,
+  ownerOf: (itemId: string) => string | null | undefined
+): string {
+  const rows = parseCsvRows(rawText);
+  const headerIdx = rows.findIndex((r) => r.some((c) => c.trim() === 'Item ID'));
+  if (headerIdx === -1) {
+    throw new ReportFormatError('This file has no "Item ID" column to attach owners to.');
+  }
+  const header = rows[headerIdx];
+  const width = header.length;
+  const idCol = header.findIndex((h) => h.trim() === 'Item ID');
+
+  const out = rows.map((r, i) => {
+    const padded = r.length < width ? [...r, ...Array(width - r.length).fill('')] : [...r];
+    if (i === headerIdx) return [...padded, 'Owner'];
+    const itemId = (r[idCol] ?? '').trim();
+    const owner = itemId ? (ownerOf(itemId)?.trim() || 'Unassigned') : '';
+    return [...padded, owner];
+  });
+  return toCsv(out);
+}
+
 export function parseLineReport(text: string): ParsedReport {
   const rows = parseCsvRows(text);
   const headerIdx = rows.findIndex((r) => r.some((c) => c.trim() === 'Item ID'));

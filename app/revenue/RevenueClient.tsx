@@ -20,6 +20,7 @@ import {
   splitByOwner,
   allocate,
   combineReports,
+  appendOwnerColumn,
   periodKey,
   periodLabel,
   ReportFormatError,
@@ -33,6 +34,8 @@ interface LoadedMonth {
   label: string;
   fileName: string;
   report: ParsedReport;
+  /** The uploaded file's exact text, kept so it can be re-downloaded with an Owner column. */
+  rawText: string;
 }
 
 const ALL = '__all__';
@@ -140,9 +143,10 @@ export default function RevenueClient() {
 
     for (const file of files) {
       try {
-        const report = parseLineReport(await file.text());
+        const text = await file.text();
+        const report = parseLineReport(text);
         const key = periodKey(report);
-        parsed.push({ key, label: periodLabel(key), fileName: file.name, report });
+        parsed.push({ key, label: periodLabel(key), fileName: file.name, report, rawText: text });
       } catch (e) {
         failed.push(`${file.name}: ${e instanceof ReportFormatError ? e.message : 'unreadable'}`);
       }
@@ -295,14 +299,37 @@ export default function RevenueClient() {
       .join('\n');
   }
 
-  function download() {
-    const blob = new Blob([`﻿${buildExport()}`], { type: 'text/csv;charset=utf-8' });
+  function saveCsv(csv: string, filename: string) {
+    // ﻿ BOM so Excel reads the file as UTF-8 (Thai pack titles / owner names).
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `revenue-split-${report?.period?.from?.replace(/\./g, '') ?? 'export'}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function download() {
+    saveCsv(buildExport(), `revenue-split-${report?.period?.from?.replace(/\./g, '') ?? 'export'}.csv`);
+  }
+
+  // Re-download the ORIGINAL uploaded file(s), unchanged except for an 'Owner' column appended to
+  // every row. One file when a single month is in view; when "All months" is selected, each loaded
+  // month is saved as its own file (staggered so the browser doesn't swallow the later ones).
+  function downloadWithOwners() {
+    const targets = selected === ALL ? months : months.filter((m) => m.key === selected);
+    targets.forEach((m, i) => {
+      const emit = () => {
+        try {
+          saveCsv(appendOwnerColumn(m.rawText, ownerOf), `${m.fileName.replace(/\.csv$/i, '')}-with-owners.csv`);
+        } catch {
+          setError('Could not build the annotated file for ' + m.label + '.');
+        }
+      };
+      if (i === 0) emit();
+      else setTimeout(emit, i * 400);
+    });
   }
 
   async function copy() {
@@ -311,7 +338,7 @@ export default function RevenueClient() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      setError('Could not copy. Use Download CSV instead.');
+      setError('Could not copy. Use Summary CSV instead.');
     }
   }
 
@@ -654,18 +681,27 @@ export default function RevenueClient() {
             <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <h2 className="font-bold text-gray-700">Revenue sharing</h2>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={copy}
+                    title="Copy the owner-split summary to the clipboard"
                     className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
                   >
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                   <button
                     onClick={download}
+                    title="Download the owner-split summary (totals per owner)"
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  >
+                    Summary CSV
+                  </button>
+                  <button
+                    onClick={downloadWithOwners}
+                    title="Download the original LINE file(s) unchanged, with an Owner column added at the end"
                     className="text-xs px-3 py-1.5 rounded-lg bg-[#06c755] text-white hover:bg-[#05b04a]"
                   >
-                    Download CSV
+                    {selected === ALL && months.length > 1 ? 'Original files + Owner' : 'Original + Owner'}
                   </button>
                 </div>
               </div>
