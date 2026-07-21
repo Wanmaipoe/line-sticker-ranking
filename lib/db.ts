@@ -1,5 +1,6 @@
 import { createClient, type Client } from '@libsql/client';
 import { COUNTRY_ORDER } from './countries';
+import { categoryOf } from './categories';
 
 let _client: Client | null = null;
 
@@ -349,6 +350,83 @@ export async function getCreatorLeaderboards(
     th: aggregateCreators(rows.filter((r) => r.country === 'th'), limit),
     tw: aggregateCreators(rows.filter((r) => r.country === 'tw'), limit),
   };
+}
+
+export interface CategoryRankItem {
+  rank: number; // the sticker's overall rank in that country's top 500
+  id: string;
+  name: string;
+  image_url: string | null;
+  author: string | null;
+}
+
+export interface CountryCategoryData {
+  country: string;
+  date: string | null;
+  hour: number | null;
+  /** category key -> that category's stickers, ordered by overall rank, capped at perCategoryCap. */
+  byCategory: Record<string, CategoryRankItem[]>;
+  /** category key -> full count in the current snapshot (before the cap), for the tab badge. */
+  counts: Record<string, number>;
+}
+
+/**
+ * Current top-500 per country, grouped by sticker category — powers the /categories page. Uses the
+ * same single-query `snap` CTE as getCreatorLeaderboards so each country's latest snapshot is an
+ * index seek (not a whole-table MAX GROUP BY), then groups the ~500 rows/country in JS. One query,
+ * ~500×N rows read, ISR-cached by the page — no extra scraping, no writes.
+ */
+export async function getCategoryRankings(
+  client: Client,
+  countries: readonly string[],
+  perCategoryCap = 50
+): Promise<CountryCategoryData[]> {
+  const ccUnion = countries
+    .map((_, i) => (i === 0 ? 'SELECT ? AS country' : 'UNION ALL SELECT ?'))
+    .join(' ');
+  const result = await client.execute({
+    sql: `WITH snap AS (
+            SELECT c.country AS country,
+              (SELECT snapshot_date FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS d,
+              (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS h
+            FROM (${ccUnion}) AS c
+          )
+          SELECT cur.country AS country, cur.rank AS rank, p.id AS id, p.name AS name,
+                 p.image_url AS image_url, p.author AS author, p.sticker_type AS sticker_type,
+                 s.d AS d, s.h AS h
+          FROM snap s
+          JOIN rankings cur ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
+          JOIN products p ON p.id = cur.product_id
+          ORDER BY cur.country, cur.rank ASC`,
+    args: [...countries],
+  });
+
+  const perCountry = new Map<string, CountryCategoryData>();
+  for (const cc of countries) {
+    perCountry.set(cc, { country: cc, date: null, hour: null, byCategory: {}, counts: {} });
+  }
+  for (const r of result.rows) {
+    const data = perCountry.get(r.country as string);
+    if (!data) continue;
+    data.date = (r.d as string | null) ?? data.date;
+    data.hour = (r.h as number | null) ?? data.hour;
+    const cat = categoryOf(r.sticker_type as string | null);
+    data.counts[cat] = (data.counts[cat] ?? 0) + 1;
+    const list = (data.byCategory[cat] ??= []);
+    if (list.length < perCategoryCap) {
+      list.push({
+        rank: r.rank as number,
+        id: r.id as string,
+        name: r.name as string,
+        image_url: (r.image_url as string | null) ?? null,
+        author: (r.author as string | null) ?? null,
+      });
+    }
+  }
+
+  return countries
+    .map((cc) => perCountry.get(cc)!)
+    .sort((a, b) => (COUNTRY_ORDER[a.country] ?? 99) - (COUNTRY_ORDER[b.country] ?? 99));
 }
 
 export async function getRankingHistory(client: Client, productId: string, country: string, days = 30) {

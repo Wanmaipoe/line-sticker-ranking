@@ -550,8 +550,9 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
 
         </div>
 
-        {/* Favorites toggle */}
-        <div className="max-w-6xl mx-auto px-4 pb-0 flex items-center gap-2 border-t border-gray-50 py-1.5">
+        {/* Favorites toggle — flex-wrap so the pills reflow onto a second line on narrow phones
+            instead of overflowing the header. */}
+        <div className="max-w-6xl mx-auto px-4 pb-0 flex flex-wrap items-center gap-2 border-t border-gray-50 py-1.5">
           <a
             href="/favorites"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-400 border border-gray-200 transition-colors"
@@ -566,6 +567,12 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
           >
             🏅 Top Creators
+          </a>
+          <a
+            href="/categories"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
+          >
+            🗂️ Categories
           </a>
           {revenueLink}
         </div>
