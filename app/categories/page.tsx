@@ -44,8 +44,6 @@ export default async function CategoriesPage() {
     // DB unreadable (e.g. Turso read quota) — render the shell empty (HTTP 200), not a 500.
   }
 
-  const latestDate = data.find((d) => d.date)?.date ?? null;
-
   return (
     <div className="min-h-screen bg-gray-50">
       <JsonLd data={CATEGORIES_JSONLD} />
@@ -66,7 +64,7 @@ export default async function CategoriesPage() {
           </p>
         </div>
 
-        <CategoriesClient data={data} latestDate={latestDate} />
+        <CategoriesClient data={data} />
       </div>
     </div>
   );

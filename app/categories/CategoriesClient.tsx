@@ -88,12 +88,32 @@ function CategoryColumn({
 }
 
 export default function CategoriesClient({
-  data,
-  latestDate,
+  data: initialData,
 }: {
   data: CountryCategoryData[];
-  latestDate: string | null;
 }) {
+  // The page is ISR-cached (up to ~30 min behind the hourly scrape). Refresh pulls the live snapshot
+  // on demand; it ONLY fires on an explicit click, so reads (~1,500 index-driven rows via
+  // /api/categories) are spent per-click, never in the background. The selected category persists.
+  const [data, setData] = useState<CountryCategoryData[]>(initialData);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function refresh() {
+    if (refreshing) return; // guard against double / spam clicks so one intent = one read
+    setRefreshing(true);
+    try {
+      const res = await fetch('/api/categories');
+      const json = await res.json();
+      if (Array.isArray(json.data) && json.data.length) setData(json.data);
+    } catch {
+      // keep the current data on any failure
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const latestDate = useMemo(() => data.find((d) => d.date)?.date ?? null, [data]);
+
   // Which categories have enough presence across the markets to show a tab.
   const available = useMemo(() => {
     const totals = new Map<string, number>();
@@ -113,6 +133,10 @@ export default function CategoriesClient({
     () => available.find((c) => c.key === 'animated')?.key ?? available[0]?.key ?? 'stickers'
   );
 
+  // A refresh could drop the selected category below the tab threshold; fall back so the columns
+  // never show a hidden/empty selection.
+  const effective = available.some((c) => c.key === selected) ? selected : available[0]?.key ?? selected;
+
   if (!data.length || !available.length) {
     return (
       <p className="mt-6 text-sm text-gray-400 bg-white border border-gray-100 rounded-2xl px-4 py-10 text-center">
@@ -121,30 +145,40 @@ export default function CategoriesClient({
     );
   }
 
-  const cat = CATEGORY_MAP[selected];
+  const cat = CATEGORY_MAP[effective];
 
   return (
     <div className="mt-4">
-      {/* Category tabs */}
-      <div className="flex flex-wrap gap-2">
-        {available.map((c) => (
-          <button
-            key={c.key}
-            onClick={() => setSelected(c.key)}
-            // These pills toggle which category the columns show. aria-pressed exposes the active
-            // one to screen readers — otherwise the only selected cue is colour (fails WCAG 1.4.1 /
-            // 4.1.2), so an AT or colour-blind user can't tell which category is showing.
-            aria-pressed={selected === c.key}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              selected === c.key
-                ? 'bg-[#06c755] text-white border-[#06c755]'
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            <span aria-hidden>{c.emoji}</span> {c.label}
-            <span className={selected === c.key ? 'text-green-100' : 'text-gray-400'}>{c.total}</span>
-          </button>
-        ))}
+      {/* Category tabs + Refresh */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {available.map((c) => (
+            <button
+              key={c.key}
+              onClick={() => setSelected(c.key)}
+              // These pills toggle which category the columns show. aria-pressed exposes the active
+              // one to screen readers — otherwise the only selected cue is colour (fails WCAG 1.4.1 /
+              // 4.1.2), so an AT or colour-blind user can't tell which category is showing.
+              aria-pressed={effective === c.key}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                effective === c.key
+                  ? 'bg-[#06c755] text-white border-[#06c755]'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <span aria-hidden>{c.emoji}</span> {c.label}
+              <span className={effective === c.key ? 'text-green-100' : 'text-gray-400'}>{c.total}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          title="Fetch the latest rankings now"
+          className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex-shrink-0"
+        >
+          {refreshing ? 'Loading…' : '↻ Refresh'}
+        </button>
       </div>
 
       {cat && <p className="text-xs text-gray-400 mt-2">{cat.blurb}</p>}
@@ -152,7 +186,7 @@ export default function CategoriesClient({
       {/* Three markets side by side (stacks on mobile). */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         {data.map((d) => (
-          <CategoryColumn key={d.country} data={d} categoryKey={selected} />
+          <CategoryColumn key={d.country} data={d} categoryKey={effective} />
         ))}
       </div>
 

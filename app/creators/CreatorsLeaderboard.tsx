@@ -184,16 +184,44 @@ function CountriesCell({ creator }: { creator: Creator }) {
   );
 }
 
-export default function CreatorsLeaderboard({ boards }: { boards: Boards }) {
+export default function CreatorsLeaderboard({ boards: initialBoards }: { boards: Boards }) {
   const [scope, setScope] = useState<Scope>('all');
+  // The page is ISR-cached (up to ~30 min behind the hourly scrape). Refresh pulls the live
+  // standings on demand; it ONLY fires on an explicit click, so reads (~300 index-seek rows via
+  // /api/creators) are spent per-click, never in the background. The selected market persists.
+  const [boards, setBoards] = useState<Boards>(initialBoards);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function refresh() {
+    if (refreshing) return; // guard against double / spam clicks so one intent = one read
+    setRefreshing(true);
+    try {
+      const res = await fetch('/api/creators');
+      const data = await res.json();
+      if (data.boards) setBoards(data.boards);
+    } catch {
+      // keep the current data on any failure
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   const creators = boards[scope];
   const isAll = scope === 'all';
   const colSpan = isAll ? 6 : 4;
 
   return (
     <div className="mt-4">
-      {/* Market filter */}
-      <div className="flex justify-end mb-3">
+      {/* Refresh + market filter */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          title="Fetch the latest rankings now"
+          className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex-shrink-0"
+        >
+          {refreshing ? 'Loading…' : '↻ Refresh'}
+        </button>
         <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
           {SCOPES.map((s) => (
             <button
