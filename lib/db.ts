@@ -379,7 +379,11 @@ export interface CountryCategoryData {
 export async function getCategoryRankings(
   client: Client,
   countries: readonly string[],
-  perCategoryCap = 50
+  // Effectively "all": a country snapshot is 500 rows, so no single category can exceed it. The
+  // /categories page shows the first 50 per column and expands the rest client-side, so it needs
+  // the full list — and since these rows are already read for the grouping, sending them all costs
+  // no extra DB reads, only a larger (ISR-cached) payload.
+  perCategoryCap = 500
 ): Promise<CountryCategoryData[]> {
   const ccUnion = countries
     .map((_, i) => (i === 0 ? 'SELECT ? AS country' : 'UNION ALL SELECT ?'))

@@ -11,6 +11,10 @@ import type { CountryCategoryData, CategoryRankItem } from '@/lib/db';
 // Custom/Message appear only when they actually have a presence.
 const MIN_TOTAL_FOR_TAB = 3;
 
+// A column shows this many packs, then a "View all" toggle reveals the rest (all the data is
+// already loaded, so expanding is instant — no extra fetch, no DB read).
+const INITIAL_VISIBLE = 50;
+
 function rankClass(rank: number) {
   if (rank === 1) return 'text-yellow-500';
   if (rank <= 3) return 'text-orange-400';
@@ -28,6 +32,8 @@ function CategoryColumn({
   const info = COUNTRY_MAP[data.country];
   const items: CategoryRankItem[] = data.byCategory[categoryKey] ?? [];
   const total = data.counts[categoryKey] ?? 0;
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? items : items.slice(0, INITIAL_VISIBLE);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -44,7 +50,7 @@ function CategoryColumn({
         </p>
       ) : (
         <ol className="divide-y divide-gray-50">
-          {items.map((it, i) => (
+          {visible.map((it, i) => (
             <li key={it.id}>
               <a
                 href={`/sticker/${it.id}`}
@@ -82,6 +88,16 @@ function CategoryColumn({
             </li>
           ))}
         </ol>
+      )}
+
+      {items.length > INITIAL_VISIBLE && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="w-full text-xs font-medium text-green-600 hover:bg-green-50 py-2.5 border-t border-gray-50 transition-colors"
+        >
+          {expanded ? '↑ Show less' : `↓ View all ${items.length}`}
+        </button>
       )}
     </div>
   );
@@ -186,7 +202,9 @@ export default function CategoriesClient({
       {/* Three markets side by side (stacks on mobile). */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         {data.map((d) => (
-          <CategoryColumn key={d.country} data={d} categoryKey={effective} />
+          // Key on the category too, so switching category remounts the column and resets its
+          // expand state — you never land on Pop-up already expanded from Animated.
+          <CategoryColumn key={`${d.country}-${effective}`} data={d} categoryKey={effective} />
         ))}
       </div>
 
