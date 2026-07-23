@@ -408,7 +408,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
     <a
       href="/revenue"
       title="Revenue distribution (team only)"
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100/70 text-gray-400 border border-dashed border-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+      className="flex items-center gap-1.5 px-3 py-2.5 -mb-px text-sm font-medium border-b-2 border-transparent text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors"
     >
       {/* 🔒 is a colour-emoji glyph, so `color` can't touch it and opacity alone just fades the
           gold. grayscale(1) strips the saturation outright, leaving it achromatic to match the
@@ -552,10 +552,10 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
 
         {/* Favorites toggle — flex-wrap so the pills reflow onto a second line on narrow phones
             instead of overflowing the header. */}
-        <div className="max-w-6xl mx-auto px-4 pb-0 flex flex-wrap items-center gap-2 border-t border-gray-50 py-1.5">
+        <div className="max-w-6xl mx-auto px-4 flex flex-wrap items-center gap-1 border-t border-gray-50">
           <a
             href="/favorites"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-400 border border-gray-200 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2.5 -mb-px text-sm font-medium border-b-2 border-transparent text-gray-600 hover:border-red-400 hover:text-gray-900 transition-colors"
           >
             {/* ♥ is a text glyph, not a colour emoji, so it takes `color` directly — unlike the
                 padlock on the Revenue pill, which needs a grayscale filter. */}
@@ -564,19 +564,19 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
           </a>
           <a
             href="/creators"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2.5 -mb-px text-sm font-medium border-b-2 border-transparent text-gray-600 hover:border-[#06c755] hover:text-gray-900 transition-colors"
           >
             🏅 Top Creators
           </a>
           <a
             href="/categories"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2.5 -mb-px text-sm font-medium border-b-2 border-transparent text-gray-600 hover:border-[#06c755] hover:text-gray-900 transition-colors"
           >
             🗂️ Categories
           </a>
           <a
             href="/characters"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2.5 -mb-px text-sm font-medium border-b-2 border-transparent text-gray-600 hover:border-[#06c755] hover:text-gray-900 transition-colors"
           >
             🐾 Characters
           </a>
