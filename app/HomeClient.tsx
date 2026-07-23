@@ -574,6 +574,12 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
           >
             🗂️ Categories
           </a>
+          <a
+            href="/characters"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-600 border border-gray-200 transition-colors"
+          >
+            🐾 Characters
+          </a>
           {revenueLink}
         </div>
       </header>

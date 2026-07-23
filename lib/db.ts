@@ -1,6 +1,7 @@
 import { createClient, type Client } from '@libsql/client';
 import { COUNTRY_ORDER } from './countries';
 import { categoryOf } from './categories';
+import { characterOf } from './characters';
 
 let _client: Client | null = null;
 
@@ -37,6 +38,8 @@ export interface Product {
   price_currency: string | null;
   description: string | null;
   sticker_type: string | null;
+  character_type: string | null; // cat|dog|...|other, or null until the classifier labels it
+  character_source: string | null; // 'ai' | 'manual' — manual = an admin correction, never re-labelled
   updated_at: string;
 }
 
@@ -59,6 +62,8 @@ function toProduct(row: Record<string, unknown>): Product {
     price_currency: row.price_currency as string | null,
     description: row.description as string | null,
     sticker_type: row.sticker_type as string | null,
+    character_type: (row.character_type as string | null) ?? null,
+    character_source: (row.character_source as string | null) ?? null,
     updated_at: row.updated_at as string,
   };
 }
@@ -424,6 +429,90 @@ export async function getCategoryRankings(
         name: r.name as string,
         image_url: (r.image_url as string | null) ?? null,
         author: (r.author as string | null) ?? null,
+      });
+    }
+  }
+
+  return countries
+    .map((cc) => perCountry.get(cc)!)
+    .sort((a, b) => (COUNTRY_ORDER[a.country] ?? 99) - (COUNTRY_ORDER[b.country] ?? 99));
+}
+
+export interface CharacterRankItem {
+  rank: number; // overall rank in that country's top 500
+  id: string;
+  name: string;
+  image_url: string | null;
+  author: string | null;
+  character: string; // the character bucket key it's grouped under
+  source: string | null; // 'ai' | 'manual' — lets the UI flag admin-corrected rows
+}
+
+export interface CountryCharacterData {
+  country: string;
+  date: string | null;
+  hour: number | null;
+  /** character key -> its stickers, ordered by overall rank, capped at perCharacterCap. */
+  byCharacter: Record<string, CharacterRankItem[]>;
+  /** character key -> full count in the current snapshot, for the tab badge. */
+  counts: Record<string, number>;
+}
+
+/**
+ * Current top-500 per country, grouped by CHARACTER type (cat/dog/human/...) — powers /characters.
+ * Same index-seek `snap` CTE as getCategoryRankings; the only difference is it selects the derived
+ * products.character_type instead of sticker_type and groups with characterOf(). Rows not yet
+ * classified (character_type IS NULL) are skipped — they appear once the daily classifier labels
+ * them. One query, ~500×N rows read, ISR-cached — no extra scraping, no writes.
+ */
+export async function getCharacterRankings(
+  client: Client,
+  countries: readonly string[],
+  perCharacterCap = 500
+): Promise<CountryCharacterData[]> {
+  const ccUnion = countries
+    .map((_, i) => (i === 0 ? 'SELECT ? AS country' : 'UNION ALL SELECT ?'))
+    .join(' ');
+  const result = await client.execute({
+    sql: `WITH snap AS (
+            SELECT c.country AS country,
+              (SELECT snapshot_date FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS d,
+              (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS h
+            FROM (${ccUnion}) AS c
+          )
+          SELECT cur.country AS country, cur.rank AS rank, p.id AS id, p.name AS name,
+                 p.image_url AS image_url, p.author AS author,
+                 p.character_type AS character_type, p.character_source AS character_source,
+                 s.d AS d, s.h AS h
+          FROM snap s
+          JOIN rankings cur ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
+          JOIN products p ON p.id = cur.product_id
+          ORDER BY cur.country, cur.rank ASC`,
+    args: [...countries],
+  });
+
+  const perCountry = new Map<string, CountryCharacterData>();
+  for (const cc of countries) {
+    perCountry.set(cc, { country: cc, date: null, hour: null, byCharacter: {}, counts: {} });
+  }
+  for (const r of result.rows) {
+    const data = perCountry.get(r.country as string);
+    if (!data) continue;
+    data.date = (r.d as string | null) ?? data.date;
+    data.hour = (r.h as number | null) ?? data.hour;
+    const ch = characterOf(r.character_type as string | null);
+    if (!ch) continue; // not classified yet — don't show until the classifier labels it
+    data.counts[ch] = (data.counts[ch] ?? 0) + 1;
+    const list = (data.byCharacter[ch] ??= []);
+    if (list.length < perCharacterCap) {
+      list.push({
+        rank: r.rank as number,
+        id: r.id as string,
+        name: r.name as string,
+        image_url: (r.image_url as string | null) ?? null,
+        author: (r.author as string | null) ?? null,
+        character: ch,
+        source: (r.character_source as string | null) ?? null,
       });
     }
   }

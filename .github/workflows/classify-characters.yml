@@ -1,0 +1,27 @@
+name: Classify Sticker Characters
+
+# Once a day. The classifier labels only currently-ranked packs that have no character_type yet
+# (≈340 new/day steady-state, or a ~1,455 backfill drained ~450/day) via Cloudflare Moondream, which
+# stays inside the 10,000-neuron/day free tier. Manual (admin-corrected) rows are never touched.
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC daily (~10:00 Thailand), well after the hourly scrape
+  workflow_dispatch: # allow a manual run from the Actions tab (e.g. to kick off the first backfill)
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install @libsql/client
+      - name: Classify new packs
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: node scripts/classify-characters.mjs
