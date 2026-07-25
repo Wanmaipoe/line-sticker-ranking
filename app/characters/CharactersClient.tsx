@@ -229,10 +229,15 @@ export default function CharactersClient({ data: initialData }: { data: CountryC
         totals.set(ch, (totals.get(ch) ?? 0) + n);
       }
     }
-    return CHARACTER_CATEGORIES.filter((c) => (totals.get(c.key) ?? 0) >= MIN_TOTAL_FOR_TAB).map((c) => ({
-      ...c,
-      total: totals.get(c.key) ?? 0,
-    }));
+    return CHARACTER_CATEGORIES.filter((c) => (totals.get(c.key) ?? 0) >= MIN_TOTAL_FOR_TAB)
+      .map((c) => ({ ...c, total: totals.get(c.key) ?? 0 }))
+      .sort((a, b) => {
+        // 'other' is the catch-all bucket (frogs, abstract art, unknown animals) — pin it last no
+        // matter how large, so the named characters lead. Everything else is most → least.
+        if (a.key === 'other') return 1;
+        if (b.key === 'other') return -1;
+        return b.total - a.total;
+      });
   }, [data]);
 
   const [selected, setSelected] = useState<string>(
