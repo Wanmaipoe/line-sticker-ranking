@@ -35,7 +35,7 @@ export default function AdsToggle() {
           ? 'Hide the advertising CTA on this browser'
           : 'Show the advertising CTA on this browser (preview only — not visible to other visitors)'
       }
-      className="text-gray-300 hover:text-gray-500 underline underline-offset-2 transition-colors"
+      className="text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 underline underline-offset-2 transition-colors"
     >
       {on ? 'Disable advertising' : 'Enable advertising'}
     </button>

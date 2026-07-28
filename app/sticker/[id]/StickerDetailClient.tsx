@@ -122,18 +122,18 @@ export default function StickerDetailClient({
   const priceLabel = formatPrice(price, priceCurrency);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3 mb-6">
           <BackButton />
-          <span className="text-gray-300">·</span>
-          <a href="/" className="text-sm text-green-600 hover:underline">Main</a>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <a href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">Main</a>
         </div>
 
         {/* Sticker Info Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5 mb-6">
           <div className="flex items-start gap-4">
-            <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
               <Image
                 src={imageUrl}
                 alt={name}
@@ -146,14 +146,14 @@ export default function StickerDetailClient({
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <h1 className="text-lg font-bold text-gray-800 leading-snug">{name}</h1>
+                  <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100 leading-snug">{name}</h1>
                   <TypeBadge type={stickerType} />
                 </div>
                 <button
                   onClick={() => toggle(id)}
                   disabled={!favLoaded}
                   className={`text-2xl flex-shrink-0 transition-colors ${
-                    favorited ? 'text-red-400' : 'text-gray-200 hover:text-red-300'
+                    favorited ? 'text-red-400 dark:text-red-400' : 'text-gray-200 dark:text-gray-700 hover:text-red-300'
                   }`}
                   title={favorited ? 'Remove from favorites' : 'Add to favorites'}
                 >
@@ -163,33 +163,33 @@ export default function StickerDetailClient({
               {author && (
                 <button
                   onClick={() => router.push(`/creator/${encodeURIComponent(author)}`)}
-                  className="text-sm text-green-600 hover:underline mt-0.5"
+                  className="text-sm text-green-600 dark:text-green-400 hover:underline mt-0.5"
                 >
                   👤 {author}
                 </button>
               )}
-              <p className="text-xs text-gray-400 mt-1">Product ID: {id}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Product ID: {id}</p>
               <div className="flex items-center gap-3 mt-2 flex-wrap">
                 <a
                   href={`https://store.line.me/stickershop/product/${id}/th`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-green-500 hover:underline"
+                  className="text-xs text-green-500 dark:text-green-400 hover:underline"
                 >
                   Open in LINE Store ↗
                 </a>
                 {priceLabel && (
-                  <span className="text-xs text-gray-500 font-medium">{priceLabel}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">{priceLabel}</span>
                 )}
               </div>
               {description && (
-                <p className="text-xs text-gray-500 mt-2 line-clamp-2">{description}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">{description}</p>
               )}
             </div>
             <button
               onClick={refreshRankings}
               disabled={refreshing}
-              className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex-shrink-0 self-start"
+              className="text-xs bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 px-3 py-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors disabled:opacity-50 flex-shrink-0 self-start"
             >
               {refreshing ? 'Loading...' : '↻ Refresh'}
             </button>
@@ -200,10 +200,10 @@ export default function StickerDetailClient({
         </div>
 
         {/* Global Rank Matrix */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-700">Global rank matrix</h2>
-            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-full">
+            <h2 className="font-bold text-gray-700 dark:text-gray-200">Global rank matrix</h2>
+            <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded-full">
               Click a row to view graph
             </span>
           </div>
@@ -211,26 +211,26 @@ export default function StickerDetailClient({
           {/* Global footprint */}
           {countriesRanked > 0 && (
             <div className="grid grid-cols-3 gap-2 mb-4">
-              <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
-                <p className="text-lg font-bold text-gray-700 leading-none">{countriesRanked}</p>
-                <p className="text-[11px] text-gray-400 mt-1">countries ranked</p>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-lg font-bold text-gray-700 dark:text-gray-200 leading-none">{countriesRanked}</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">countries ranked</p>
               </div>
-              <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
-                <p className="text-lg font-bold text-green-600 leading-none">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-lg font-bold text-green-600 dark:text-green-400 leading-none">
                   #{bestRank}
                   {bestCountry && <span className="text-xs"> {COUNTRY_MAP[bestCountry]?.flag}</span>}
                 </p>
-                <p className="text-[11px] text-gray-400 mt-1">best rank</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">best rank</p>
               </div>
-              <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
-                <p className="text-lg font-bold text-gray-700 leading-none">{top10}</p>
-                <p className="text-[11px] text-gray-400 mt-1">top 10 markets</p>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-lg font-bold text-gray-700 dark:text-gray-200 leading-none">{top10}</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">top 10 markets</p>
               </div>
             </div>
           )}
 
           {droppedOut && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mb-4">
+            <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/30 rounded-xl px-3 py-2.5 mb-4">
               Not currently in any market&apos;s top 500. Showing where it last charted and its 30-day history below.
             </p>
           )}
@@ -243,8 +243,8 @@ export default function StickerDetailClient({
         </div>
 
         {/* Graph Panel */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-bold text-gray-700 mb-4">Ranking history</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
+          <h2 className="font-bold text-gray-700 dark:text-gray-200 mb-4">Ranking history</h2>
           <RankGraph
             allData={graphData}
             selectedCountry={selectedCountry}

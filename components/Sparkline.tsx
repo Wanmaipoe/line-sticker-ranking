@@ -35,7 +35,7 @@ export default function Sparkline({ ranks, width = 88, height = 30 }: Props) {
 
   // Trend from first→last: improved (rank got smaller) = green, worse = red, flat = gray.
   const trend = ranks[ranks.length - 1] - ranks[0];
-  const stroke = trend < 0 ? '#16a34a' : trend > 0 ? '#dc2626' : '#9ca3af';
+  const stroke = trend < 0 ? 'var(--spark-up)' : trend > 0 ? 'var(--spark-down)' : 'var(--spark-flat)';
   const trendWord = trend < 0 ? 'improving' : trend > 0 ? 'declining' : 'steady';
   const label = `Rank over the last 7 days (${trendWord})`;
   const hitR = Math.min(6, Math.max(4, stepX / 2));
@@ -50,11 +50,11 @@ export default function Sparkline({ ranks, width = 88, height = 30 }: Props) {
       style={{ display: 'block', overflow: 'visible' }}
     >
       <title>{label}</title>
-      <polygon points={area} fill={stroke} fillOpacity={0.1} stroke="none" />
-      <polyline points={line} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <polygon points={area} style={{ fill: stroke }} fillOpacity={0.1} stroke="none" />
+      <polyline points={line} fill="none" style={{ stroke }} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
       {coords.map((c, i) => (
         <g key={i}>
-          <circle cx={c.x} cy={c.y} r={i === coords.length - 1 ? 2.6 : 2} fill={stroke} stroke="#fff" strokeWidth={0.75} />
+          <circle cx={c.x} cy={c.y} r={i === coords.length - 1 ? 2.6 : 2} style={{ fill: stroke, stroke: 'var(--spark-halo)' }} strokeWidth={0.75} />
           {/* Bigger invisible target so the tooltip is easy to trigger on hover/tap. */}
           <circle cx={c.x} cy={c.y} r={hitR} fill="transparent" style={{ cursor: 'pointer' }}>
             <title>Rank #{ranks[i]}</title>

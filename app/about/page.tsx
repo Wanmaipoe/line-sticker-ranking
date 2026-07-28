@@ -44,29 +44,29 @@ const jsonLd = [
 function QA({ q, children }: { q: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-base font-bold text-gray-800">{q}</h2>
-      <div className="text-sm text-gray-600 mt-1.5 leading-relaxed space-y-2">{children}</div>
+      <h2 className="text-base font-bold text-gray-800 dark:text-gray-100">{q}</h2>
+      <div className="text-sm text-gray-600 dark:text-gray-300 mt-1.5 leading-relaxed space-y-2">{children}</div>
     </div>
   );
 }
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-3xl mx-auto px-4 py-10">
         <div className="flex items-center gap-3 mb-6">
-          <a href="/" className="text-sm text-green-600 hover:underline">← Back to rankings</a>
+          <a href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">← Back to rankings</a>
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-800">About LineStickerRanking</h1>
-        <p className="text-gray-600 mt-3 leading-relaxed">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">About LineStickerRanking</h1>
+        <p className="text-gray-600 dark:text-gray-300 mt-3 leading-relaxed">
           LineStickerRanking is an independent tool that tracks which LINE stickers are the most
           popular right now in Japan, Thailand and Taiwan. We record the official LINE Store charts
           every hour and keep a 30-day history, so you can see not just today&apos;s top stickers but
           how each one is rising or falling over time.
         </p>
 
-        <div className="mt-8 space-y-6 bg-white rounded-2xl border border-gray-100 p-6">
+        <div className="mt-8 space-y-6 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
           <QA q="What data do you track?">
             <p>
               The top 500 creator stickers per country (Japan, Thailand and Taiwan on the homepage;
@@ -102,7 +102,7 @@ export default function AboutPage() {
             <p>
               LineStickerRanking is built and maintained by a small independent team (11tumarai
               Company). For questions, corrections, data licensing, or advertising, contact{' '}
-              <a href="mailto:linestickerranking@gmail.com" className="text-green-600 hover:underline">
+              <a href="mailto:linestickerranking@gmail.com" className="text-green-600 dark:text-green-400 hover:underline">
                 linestickerranking@gmail.com
               </a>
               .
@@ -116,12 +116,12 @@ export default function AboutPage() {
           </QA>
         </div>
 
-        <p className="text-xs text-gray-400 mt-6">
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-6">
           Explore the live rankings for{' '}
-          <a href="/country/jp" className="text-green-600 hover:underline">Japan</a>,{' '}
-          <a href="/country/th" className="text-green-600 hover:underline">Thailand</a>, and{' '}
-          <a href="/country/tw" className="text-green-600 hover:underline">Taiwan</a>, or see the{' '}
-          <a href="/creators" className="text-green-600 hover:underline">top creators</a>.
+          <a href="/country/jp" className="text-green-600 dark:text-green-400 hover:underline">Japan</a>,{' '}
+          <a href="/country/th" className="text-green-600 dark:text-green-400 hover:underline">Thailand</a>, and{' '}
+          <a href="/country/tw" className="text-green-600 dark:text-green-400 hover:underline">Taiwan</a>, or see the{' '}
+          <a href="/creators" className="text-green-600 dark:text-green-400 hover:underline">top creators</a>.
         </p>
       </div>
       <JsonLd data={jsonLd} />

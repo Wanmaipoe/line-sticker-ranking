@@ -88,19 +88,19 @@ export default function JapaneseLandingPage() {
   return (
     // The root layout is lang="en"; this wrapper re-declares Japanese for this page's
     // content (screen readers + non-Google engines — Google detects language from the text).
-    <div lang="ja" className="min-h-screen bg-gray-50">
+    <div lang="ja" className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-4xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-gray-800 text-lg">LineStickerRanking</span>
-          <a href="/" className="text-sm text-green-600 hover:underline">English</a>
+          <span className="font-bold text-gray-800 dark:text-gray-100 text-lg">LineStickerRanking</span>
+          <a href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">English</a>
         </div>
 
         {/* Hero */}
         <div className="text-center mt-10 mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">
             LINEスタンプ ランキング（毎時更新）
           </h1>
-          <p className="text-gray-500 mt-3 max-w-2xl mx-auto">
+          <p className="text-gray-500 dark:text-gray-400 mt-3 max-w-2xl mx-auto">
             LINE STOREのクリエイターズスタンプ上位500位を毎時間記録。過去30日間の順位グラフ付き。
             日本だけでなく、タイ・台湾のランキングも見られます。
           </p>
@@ -113,13 +113,13 @@ export default function JapaneseLandingPage() {
             </a>
             <a
               href="/creators"
-              className="bg-white text-green-600 border border-green-200 font-medium px-5 py-2.5 rounded-xl hover:bg-green-50 transition-colors"
+              className="bg-white dark:bg-gray-900 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 font-medium px-5 py-2.5 rounded-xl hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors"
             >
               🏅 クリエイターランキング
             </a>
             <a
               href="/"
-              className="bg-white text-gray-600 border border-gray-200 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-100 transition-colors"
+              className="bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               🌏 3カ国まとめて見る
             </a>
@@ -129,34 +129,34 @@ export default function JapaneseLandingPage() {
         {/* Features */}
         <div className="grid sm:grid-cols-2 gap-4 mt-10">
           {FEATURES.map((f) => (
-            <div key={f.title} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <h2 className="font-bold text-gray-700">
+            <div key={f.title} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
+              <h2 className="font-bold text-gray-700 dark:text-gray-200">
                 {f.icon} {f.title}
               </h2>
-              <p className="text-sm text-gray-500 mt-1.5">{f.body}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1.5">{f.body}</p>
             </div>
           ))}
         </div>
 
         {/* Creator how-to — targets "ランキング 自分" / "順位 検索" intent */}
-        <div className="bg-white rounded-2xl shadow-sm border border-green-100 p-6 mt-8">
-          <h2 className="font-bold text-gray-800 text-lg">自分のスタンプの順位を検索する</h2>
-          <p className="text-sm text-gray-500 mt-2">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-green-100 dark:border-green-500/20 p-6 mt-8">
+          <h2 className="font-bold text-gray-800 dark:text-gray-100 text-lg">自分のスタンプの順位を検索する</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
             LINE Creators Marketでスタンプを販売しているクリエイターの方は、
             自分のスタンプが今チャートのどこにいるか、次の手順で確認できます。
           </p>
-          <ol className="list-decimal list-inside text-sm text-gray-600 mt-3 space-y-1.5">
+          <ol className="list-decimal list-inside text-sm text-gray-600 dark:text-gray-300 mt-3 space-y-1.5">
             <li>
-              <a href="/" className="text-green-600 hover:underline">トップページ</a>
+              <a href="/" className="text-green-600 dark:text-green-400 hover:underline">トップページ</a>
               の検索ボックスに、スタンプ名またはクリエイター名を入力
             </li>
             <li>スタンプをクリックすると、各国の現在順位と30日間の順位グラフが表示されます</li>
             <li>お気に入り（♥ Favorites）に保存しておけば、毎日の変動を追いかけられます</li>
           </ol>
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
             ※対象は各国のTop500にランクインしたことのあるスタンプです。まだ圏外のスタンプは検索結果に表示されません。
           </p>
-          <p className="text-sm text-gray-500 mt-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
             販売数の確認はLINE Creators Marketのマイページでしかできませんが、
             市場全体の中での立ち位置は、Top500チャート上の順位と毎時の変動から読み取れます。
           </p>
@@ -164,28 +164,28 @@ export default function JapaneseLandingPage() {
 
         {/* FAQ */}
         <div className="mt-8">
-          <h2 className="font-bold text-gray-800 text-lg mb-3">よくある質問</h2>
+          <h2 className="font-bold text-gray-800 dark:text-gray-100 text-lg mb-3">よくある質問</h2>
           <div className="space-y-3">
             {FAQ.map((item) => (
-              <div key={item.q} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                <h3 className="font-semibold text-gray-700 text-sm">{item.q}</h3>
-                <p className="text-sm text-gray-500 mt-1">{item.a}</p>
+              <div key={item.q} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
+                <h3 className="font-semibold text-gray-700 dark:text-gray-200 text-sm">{item.q}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{item.a}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <footer className="border-t border-gray-100 mt-12 py-8 text-center text-xs text-gray-400 space-y-1">
+        <footer className="border-t border-gray-100 dark:border-gray-800 mt-12 py-8 text-center text-xs text-gray-400 dark:text-gray-500 space-y-1">
           <p>
-            <a href="/" className="hover:text-green-600">English</a>
+            <a href="/" className="hover:text-green-600 dark:hover:text-green-400">English</a>
             {' · '}
-            <a href="/th" lang="th" className="hover:text-green-600">ภาษาไทย</a>
+            <a href="/th" lang="th" className="hover:text-green-600 dark:hover:text-green-400">ภาษาไทย</a>
             {' · '}
-            <a href="/zh-hant" lang="zh-Hant" className="hover:text-green-600">繁體中文</a>
+            <a href="/zh-hant" lang="zh-Hant" className="hover:text-green-600 dark:hover:text-green-400">繁體中文</a>
             {' · '}
-            <a href="/country/jp" className="hover:text-green-600">日本のランキング</a>
+            <a href="/country/jp" className="hover:text-green-600 dark:hover:text-green-400">日本のランキング</a>
           </p>
-          <p className="font-semibold text-gray-500">11tumarai Company</p>
+          <p className="font-semibold text-gray-500 dark:text-gray-400">11tumarai Company</p>
         </footer>
       </div>
       <JsonLd

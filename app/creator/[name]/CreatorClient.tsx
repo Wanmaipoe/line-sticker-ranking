@@ -33,18 +33,18 @@ export default function CreatorClient({ author, products: initialProducts }: Pro
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3">
           <BackButton />
-          <span className="text-gray-300">·</span>
-          <a href="/" className="text-sm text-green-600 hover:underline">Main</a>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <a href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">Main</a>
         </div>
 
         <div className="mt-5 mb-6 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-800">👤 {author}</h1>
-            <p className="text-sm text-gray-400 mt-1">
+            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">👤 {author}</h1>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
               {products.length} sticker pack{products.length !== 1 ? 's' : ''} in rankings
             </p>
           </div>
@@ -52,7 +52,7 @@ export default function CreatorClient({ author, products: initialProducts }: Pro
             onClick={refresh}
             disabled={refreshing}
             title="Fetch the latest rankings now"
-            className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex-shrink-0 self-start"
+            className="text-xs bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 px-3 py-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors disabled:opacity-50 flex-shrink-0 self-start"
           >
             {refreshing ? 'Loading…' : '↻ Refresh'}
           </button>

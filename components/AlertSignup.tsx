@@ -62,7 +62,7 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
   // Just submitted, new subscriber → needs to confirm
   if (status === 'sent') {
     return (
-      <div className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+      <div className="text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 rounded-xl px-4 py-3">
         📧 Almost there — check your inbox and click the confirm link to start getting alerts.
       </div>
     );
@@ -71,9 +71,9 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
   // Already following on this device (revisit), or just added an already-verified email
   if (followed || status === 'following') {
     return (
-      <div className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3 flex items-center gap-1.5">
+      <div className="text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 rounded-xl px-4 py-3 flex items-center gap-1.5">
         🔔 You&apos;re getting rank alerts for this sticker
-        <span className="text-[11px] text-gray-400">· manage via the link in your emails</span>
+        <span className="text-[11px] text-gray-400 dark:text-gray-500">· manage via the link in your emails</span>
       </div>
     );
   }
@@ -82,7 +82,7 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl px-4 py-2.5 transition-colors w-full sm:w-auto"
+        className="text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-500/10 hover:bg-green-100 dark:hover:bg-green-500/20 border border-green-200 dark:border-green-500/30 rounded-xl px-4 py-2.5 transition-colors w-full sm:w-auto"
       >
         🔔 Get rank alerts
       </button>
@@ -90,8 +90,8 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
   }
 
   return (
-    <div className="bg-green-50/60 border border-green-100 rounded-xl px-4 py-3">
-      <p className="text-sm text-gray-600 mb-2">Made this sticker? Get an email when it moves rank.</p>
+    <div className="bg-green-50/60 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 rounded-xl px-4 py-3">
+      <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">Made this sticker? Get an email when it moves rank.</p>
       <div className="flex gap-2">
         <input
           type="email"
@@ -99,7 +99,7 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           placeholder="you@email.com"
-          className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 focus:border-green-500 focus:outline-none text-sm"
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 focus:border-green-500 focus:outline-none text-sm"
         />
         <button
           onClick={submit}
@@ -109,8 +109,8 @@ export default function AlertSignup({ stickerId }: { stickerId: string }) {
           {status === 'sending' ? '...' : 'Notify me'}
         </button>
       </div>
-      {status === 'error' && <p className="text-red-500 text-xs mt-1.5">{err}</p>}
-      <p className="text-[11px] text-gray-400 mt-1.5">Free. One confirmation email, then alerts only when something notable happens. Unsubscribe anytime.</p>
+      {status === 'error' && <p className="text-red-500 dark:text-red-400 text-xs mt-1.5">{err}</p>}
+      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">Free. One confirmation email, then alerts only when something notable happens. Unsubscribe anytime.</p>
     </div>
   );
 }

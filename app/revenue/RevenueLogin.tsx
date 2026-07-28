@@ -36,21 +36,21 @@ export default function RevenueLogin({ configured }: { configured: boolean }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <Link href="/" className="text-sm text-green-600 hover:underline">
+        <Link href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">
           ← Back to rankings
         </Link>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-4">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-6 mt-4">
           <div className="text-center">
             <div className="text-3xl">🔒</div>
-            <h1 className="text-lg font-bold text-gray-800 mt-2">Revenue distribution</h1>
-            <p className="text-xs text-gray-400 mt-1">Team only. Enter the shared password.</p>
+            <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100 mt-2">Revenue distribution</h1>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Team only. Enter the shared password.</p>
           </div>
 
           {!configured ? (
-            <p className="mt-5 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+            <p className="mt-5 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/30 rounded-xl px-3 py-2.5">
               This tool has no password set yet. Add <code className="font-mono">REVENUE_PASSWORD</code> to the
               Vercel project environment variables and redeploy.
             </p>
@@ -63,9 +63,9 @@ export default function RevenueLogin({ configured }: { configured: boolean }) {
                 placeholder="Password"
                 autoFocus
                 autoComplete="current-password"
-                className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm transition-colors bg-white text-gray-900 placeholder:text-gray-400"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-[#06c755] focus:outline-none text-sm transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
-              {error && <p className="text-xs text-red-500">{error}</p>}
+              {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
               <button
                 type="submit"
                 disabled={busy || !password}
@@ -77,7 +77,7 @@ export default function RevenueLogin({ configured }: { configured: boolean }) {
           )}
         </div>
 
-        <p className="text-[11px] text-gray-400 mt-4 text-center leading-relaxed">
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-4 text-center leading-relaxed">
           Revenue files you upload are read inside your browser only. They are never sent to this
           site&apos;s servers or saved to its database.
         </p>

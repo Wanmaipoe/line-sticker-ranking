@@ -50,20 +50,20 @@ export default function FavoritesClient() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3">
           <BackButton />
-          <span className="text-gray-300">·</span>
-          <a href="/" className="text-sm text-green-600 hover:underline">Main</a>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <a href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">Main</a>
         </div>
 
         <div className="mt-5 mb-6 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-800">
-              <span className="text-red-500" aria-hidden>♥</span> Favorites
+            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+              <span className="text-red-500 dark:text-red-400" aria-hidden>♥</span> Favorites
             </h1>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
               {favorites.length} sticker pack{favorites.length !== 1 ? 's' : ''} saved on this device
             </p>
           </div>
@@ -72,7 +72,7 @@ export default function FavoritesClient() {
               onClick={refresh}
               disabled={refreshing}
               title="Fetch the latest rankings now"
-              className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex-shrink-0 self-start"
+              className="text-xs bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 px-3 py-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors disabled:opacity-50 flex-shrink-0 self-start"
             >
               {refreshing ? 'Loading…' : '↻ Refresh'}
             </button>
@@ -80,14 +80,14 @@ export default function FavoritesClient() {
         </div>
 
         {!loaded || loading ? (
-          <div className="text-center py-16 text-gray-400 text-sm">Loading…</div>
+          <div className="text-center py-16 text-gray-400 dark:text-gray-500 text-sm">Loading…</div>
         ) : favorites.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 bg-white rounded-2xl border border-gray-100">
+          <div className="text-center py-16 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800">
             <p className="text-4xl mb-3">♡</p>
             <p className="text-sm">No favorites yet.</p>
             <p className="text-sm mt-1">
               Tap the ♥ on any sticker in the{' '}
-              <a href="/" className="text-green-600 hover:underline">rankings</a> to save it here.
+              <a href="/" className="text-green-600 dark:text-green-400 hover:underline">rankings</a> to save it here.
             </p>
           </div>
         ) : (

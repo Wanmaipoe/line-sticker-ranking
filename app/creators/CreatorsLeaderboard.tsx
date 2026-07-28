@@ -48,10 +48,10 @@ const COLUMN_HINTS: Record<string, string> = {
 };
 
 function rankClass(rank: number) {
-  if (rank === 1) return 'text-yellow-500 font-bold';
-  if (rank <= 3) return 'text-orange-400 font-semibold';
-  if (rank <= 10) return 'text-green-600 font-semibold';
-  return 'text-gray-600';
+  if (rank === 1) return 'text-yellow-500 dark:text-yellow-400 font-bold';
+  if (rank <= 3) return 'text-orange-400 dark:text-orange-300 font-semibold';
+  if (rank <= 10) return 'text-green-600 dark:text-green-400 font-semibold';
+  return 'text-gray-600 dark:text-gray-300';
 }
 
 function medal(i: number) {
@@ -70,9 +70,9 @@ function TooltipTh({ hintKey, label, className }: { hintKey: string; label: stri
       onMouseLeave={() => setShow(false)}
       onClick={() => setShow((v) => !v)}
     >
-      <span className="border-b border-dotted border-gray-300">{label}</span>
+      <span className="border-b border-dotted border-gray-300 dark:border-gray-600">{label}</span>
       {show && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-52 bg-gray-800 text-white text-xs px-2.5 py-1.5 rounded-lg z-50 shadow-lg font-normal normal-case tracking-normal text-center">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-52 bg-gray-800 dark:bg-gray-700 text-white text-xs px-2.5 py-1.5 rounded-lg z-50 shadow-lg dark:ring-1 dark:ring-gray-600 font-normal normal-case tracking-normal text-center">
           {COLUMN_HINTS[hintKey]}
         </div>
       )}
@@ -92,22 +92,22 @@ function SlotsCell({ creator }: { creator: Creator }) {
       onMouseLeave={() => setShow(false)}
       onClick={() => setShow((v) => !v)}
     >
-      <span className="font-semibold text-green-600 cursor-help border-b border-dotted border-green-300">
+      <span className="font-semibold text-green-600 dark:text-green-400 cursor-help border-b border-dotted border-green-300 dark:border-green-500/40">
         {creator.chart_entries}
       </span>
       {show && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white border border-gray-200 text-xs rounded-lg z-50 shadow-lg py-1.5 px-1 w-36 text-left">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs rounded-lg z-50 shadow-lg dark:ring-1 dark:ring-white/10 py-1.5 px-1 w-36 text-left">
           {parts.map(([cc, n]) => (
             <div key={cc} className="flex items-center justify-between px-2 py-0.5">
-              <span className="text-gray-600">
+              <span className="text-gray-600 dark:text-gray-300">
                 {COUNTRY_MAP[cc]?.flag} {COUNTRY_MAP[cc]?.name ?? cc.toUpperCase()}
               </span>
-              <span className="font-semibold text-gray-700">{n}</span>
+              <span className="font-semibold text-gray-700 dark:text-gray-200">{n}</span>
             </div>
           ))}
-          <div className="flex items-center justify-between px-2 py-0.5 mt-0.5 border-t border-gray-100 pt-1">
-            <span className="text-gray-500">Total</span>
-            <span className="font-bold text-green-600">{creator.chart_entries}</span>
+          <div className="flex items-center justify-between px-2 py-0.5 mt-0.5 border-t border-gray-100 dark:border-gray-800 pt-1">
+            <span className="text-gray-500 dark:text-gray-400">Total</span>
+            <span className="font-bold text-green-600 dark:text-green-400">{creator.chart_entries}</span>
           </div>
         </div>
       )}
@@ -126,15 +126,15 @@ function PacksCell({ creator, hideOnMobile, primary }: { creator: Creator; hideO
     >
       <span
         className={`cursor-help border-b border-dotted ${
-          primary ? 'font-semibold text-green-600 border-green-300' : 'text-gray-600 border-gray-300'
+          primary ? 'font-semibold text-green-600 dark:text-green-400 border-green-300 dark:border-green-500/40' : 'text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
         }`}
       >
         {creator.distinct_stickers}
       </span>
       {show && (
-        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg z-50 shadow-lg w-72 max-h-64 overflow-y-auto text-left">
+        <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg z-50 shadow-lg dark:ring-1 dark:ring-white/10 w-72 max-h-64 overflow-y-auto text-left">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-gray-50 text-gray-400">
+            <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500">
               <tr>
                 <th className="text-left px-2.5 py-1.5 font-medium">Pack</th>
                 <th className="px-1 py-1.5 font-medium">Country</th>
@@ -143,8 +143,8 @@ function PacksCell({ creator, hideOnMobile, primary }: { creator: Creator; hideO
             </thead>
             <tbody>
               {creator.slots.map((s, i) => (
-                <tr key={`${s.id}-${s.country}-${i}`} className="border-t border-gray-50">
-                  <td className="px-2.5 py-1 text-gray-600 truncate max-w-[130px]">{s.name}</td>
+                <tr key={`${s.id}-${s.country}-${i}`} className="border-t border-gray-50 dark:border-gray-800">
+                  <td className="px-2.5 py-1 text-gray-600 dark:text-gray-300 truncate max-w-[130px]">{s.name}</td>
                   <td className="px-1 py-1 text-center">{COUNTRY_MAP[s.country]?.flag ?? s.country.toUpperCase()}</td>
                   <td className={`px-2.5 py-1 text-right ${rankClass(s.rank)}`}>#{s.rank}</td>
                 </tr>
@@ -169,13 +169,13 @@ function CountriesCell({ creator }: { creator: Creator }) {
       onMouseLeave={() => setShow(false)}
       onClick={() => setShow((v) => !v)}
     >
-      <span className="text-gray-600 cursor-help border-b border-dotted border-gray-300">{creator.countries}</span>
+      <span className="text-gray-600 dark:text-gray-300 cursor-help border-b border-dotted border-gray-300 dark:border-gray-600">{creator.countries}</span>
       {show && (
-        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg z-50 shadow-lg py-1.5 w-44 text-left">
+        <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg z-50 shadow-lg dark:ring-1 dark:ring-white/10 py-1.5 w-44 text-left">
           {list.map((cc) => (
-            <div key={cc} className="flex items-center justify-between px-3 py-0.5 text-xs text-gray-600">
+            <div key={cc} className="flex items-center justify-between px-3 py-0.5 text-xs text-gray-600 dark:text-gray-300">
               <span>{COUNTRY_MAP[cc]?.flag} {COUNTRY_MAP[cc]?.name ?? cc.toUpperCase()}</span>
-              <span className="text-gray-400">{creator.by_country[cc]}</span>
+              <span className="text-gray-400 dark:text-gray-500">{creator.by_country[cc]}</span>
             </div>
           ))}
         </div>
@@ -218,17 +218,17 @@ export default function CreatorsLeaderboard({ boards: initialBoards }: { boards:
           onClick={refresh}
           disabled={refreshing}
           title="Fetch the latest rankings now"
-          className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex-shrink-0"
+          className="text-xs bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 px-3 py-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors disabled:opacity-50 flex-shrink-0"
         >
           {refreshing ? 'Loading…' : '↻ Refresh'}
         </button>
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
           {SCOPES.map((s) => (
             <button
               key={s.key}
               onClick={() => setScope(s.key)}
               className={`px-3 py-1.5 transition-colors ${
-                scope === s.key ? 'bg-green-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                scope === s.key ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
             >
               {s.label}
@@ -237,10 +237,10 @@ export default function CreatorsLeaderboard({ boards: initialBoards }: { boards:
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm bg-white">
+      <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm dark:ring-1 dark:ring-white/10 bg-white dark:bg-gray-900">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+            <tr className="bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
               <th className="text-left px-4 py-2.5 w-12">#</th>
               <th className="text-left px-2 py-2.5">Creator</th>
               {isAll && <TooltipTh hintKey="slots" label="Chart slots" className="text-center px-3 py-2.5" />}
@@ -256,17 +256,17 @@ export default function CreatorsLeaderboard({ boards: initialBoards }: { boards:
           <tbody>
             {creators.length === 0 && (
               <tr>
-                <td colSpan={colSpan} className="text-center py-10 text-gray-400 text-sm">
+                <td colSpan={colSpan} className="text-center py-10 text-gray-400 dark:text-gray-500 text-sm">
                   No data yet
                 </td>
               </tr>
             )}
             {creators.map((c, i) => (
-              <tr key={c.author} className="border-t border-gray-50 hover:bg-green-50 transition-colors">
-                <td className="px-4 py-3 text-center font-bold text-gray-400">{medal(i) ?? i + 1}</td>
+              <tr key={c.author} className="border-t border-gray-50 dark:border-gray-800 hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors">
+                <td className="px-4 py-3 text-center font-bold text-gray-400 dark:text-gray-500">{medal(i) ?? i + 1}</td>
                 <td className="px-2 py-3">
                   <a href={`/creator/${encodeURIComponent(c.author)}`} className="flex items-center gap-2.5 group">
-                    <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0">
                       <Image
                         src={
                           c.sample_image ??
@@ -279,8 +279,8 @@ export default function CreatorsLeaderboard({ boards: initialBoards }: { boards:
                       />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-700 truncate group-hover:text-green-700">{c.author}</p>
-                      <p className="text-xs text-gray-400 truncate">{c.sample_name}</p>
+                      <p className="font-medium text-gray-700 dark:text-gray-200 truncate group-hover:text-green-700 dark:group-hover:text-green-300">{c.author}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{c.sample_name}</p>
                     </div>
                   </a>
                 </td>

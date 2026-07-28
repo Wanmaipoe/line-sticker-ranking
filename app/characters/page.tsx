@@ -44,22 +44,22 @@ export default async function CharactersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <JsonLd data={CHARACTERS_JSONLD} />
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3">
           <BackButton />
-          <span className="text-gray-300">·</span>
-          <Link href="/" className="text-sm text-green-600 hover:underline">Main</Link>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <Link href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">Main</Link>
         </div>
 
         <div className="mt-5 mb-2">
-          <h1 className="text-xl font-bold text-gray-800">🐾 LINE Sticker Character Rankings</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">🐾 LINE Sticker Character Rankings</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             The top packs of each character type — cat, dog, rabbit, human and more — charting in
             Japan, Thailand and Taiwan right now.
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             Characters are auto-detected from each pack&apos;s art. Pick one, compare the three markets.
           </p>
         </div>

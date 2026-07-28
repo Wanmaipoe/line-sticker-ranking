@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useOwnerMap } from '@/hooks/useOwnerMap';
+import { useChartColors } from '@/lib/theme';
 import {
   LineChart,
   Line,
@@ -79,6 +80,7 @@ function compact(v: number): string {
 export default function RevenueClient() {
   const router = useRouter();
   const { owners, loaded, ownerOf, assign, assignMany, addOwner, removeOwner, clearAll } = useOwnerMap();
+  const chart = useChartColors();
 
   const [months, setMonths] = useState<LoadedMonth[]>([]);
   const [selected, setSelected] = useState<string>(ALL);
@@ -348,17 +350,17 @@ export default function RevenueClient() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/" className="text-sm text-green-600 hover:underline flex-shrink-0">
+            <Link href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline flex-shrink-0">
               ← Rankings
             </Link>
-            <span className="text-gray-200">·</span>
-            <h1 className="font-bold text-gray-800 truncate">🔒 Revenue distribution</h1>
+            <span className="text-gray-200 dark:text-gray-700">·</span>
+            <h1 className="font-bold text-gray-800 dark:text-gray-100 truncate">🔒 Revenue distribution</h1>
           </div>
-          <button onClick={signOut} className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0">
+          <button onClick={signOut} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0">
             Sign out
           </button>
         </div>
@@ -378,16 +380,16 @@ export default function RevenueClient() {
             const f = Array.from(e.dataTransfer.files ?? []);
             if (f.length) loadFiles(f);
           }}
-          className={`bg-white rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
-            dragging ? 'border-[#06c755] bg-green-50/40' : 'border-gray-200'
+          className={`bg-white dark:bg-gray-900 rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
+            dragging ? 'border-[#06c755] bg-green-50/40 dark:bg-green-500/10' : 'border-gray-200 dark:border-gray-700'
           }`}
         >
-          <p className="text-sm font-medium text-gray-700">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
             {months.length ? 'Add more months' : 'Upload your LINE revenue reports'}
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             Drag one or more .csv files here, or{' '}
-            <button onClick={() => fileRef.current?.click()} className="text-green-600 hover:underline">
+            <button onClick={() => fileRef.current?.click()} className="text-green-600 dark:text-green-400 hover:underline">
               choose files
             </button>
             . They are read in your browser and never uploaded.
@@ -411,12 +413,12 @@ export default function RevenueClient() {
                 <span
                   key={m.key}
                   title={m.fileName}
-                  className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full text-[11px] font-medium bg-gray-50 text-gray-600 border border-gray-200"
+                  className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full text-[11px] font-medium bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
                 >
                   {m.label}
                   <button
                     onClick={() => removeMonth(m.key)}
-                    className="w-4 h-4 rounded-full hover:bg-black/10 leading-none text-gray-400"
+                    className="w-4 h-4 rounded-full hover:bg-black/10 dark:hover:bg-white/10 leading-none text-gray-400 dark:text-gray-500"
                     title={`Remove ${m.label}`}
                   >
                     ×
@@ -427,7 +429,7 @@ export default function RevenueClient() {
           )}
 
           {error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 mt-3 text-left">
+            <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/30 rounded-xl px-3 py-2.5 mt-3 text-left">
               {error}
             </p>
           )}
@@ -436,7 +438,7 @@ export default function RevenueClient() {
         {/* Month selector — only earns its space once there's more than one month. */}
         {months.length > 1 && (
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-gray-400 mr-1">Showing</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">Showing</span>
             {[{ key: ALL, label: `All ${months.length} months` }, ...months].map((m) => (
               <button
                 key={m.key}
@@ -444,7 +446,7 @@ export default function RevenueClient() {
                 className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                   selected === m.key
                     ? 'bg-[#06c755] text-white border-[#06c755]'
-                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                    : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 {m.label}
@@ -456,39 +458,39 @@ export default function RevenueClient() {
         {report && split && (
           <>
             {/* Report header */}
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
               <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                <h2 className="font-bold text-gray-700">Report summary</h2>
+                <h2 className="font-bold text-gray-700 dark:text-gray-200">Report summary</h2>
                 {report.period && (
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
                     {report.period.from} – {report.period.to}
                   </span>
                 )}
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <p className="text-[11px] text-gray-400">Packs sold</p>
-                  <p className="text-lg font-bold text-gray-700 leading-tight">{report.items.length}</p>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">Packs sold</p>
+                  <p className="text-lg font-bold text-gray-700 dark:text-gray-200 leading-tight">{report.items.length}</p>
                 </div>
-                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <p className="text-[11px] text-gray-400">Revenue share</p>
-                  <p className="text-lg font-bold text-gray-700 leading-tight">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">Revenue share</p>
+                  <p className="text-lg font-bold text-gray-700 dark:text-gray-200 leading-tight">
                     {money(report.rowTotal, currency)}
                   </p>
                 </div>
-                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <p className="text-[11px] text-gray-400">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
                     Withholding tax
                     {report.footer.withholdingTaxRate != null && ` (${report.footer.withholdingTaxRate}%)`}
                   </p>
-                  <p className="text-lg font-bold text-red-500 leading-tight">
+                  <p className="text-lg font-bold text-red-500 dark:text-red-400 leading-tight">
                     −{money(report.footer.withholdingTaxAmount, currency)}
                   </p>
                 </div>
-                <div className="bg-green-50 rounded-xl px-3 py-2.5">
-                  <p className="text-[11px] text-green-600">Amount payable</p>
-                  <p className="text-lg font-bold text-green-700 leading-tight">
+                <div className="bg-green-50 dark:bg-green-500/10 rounded-xl px-3 py-2.5">
+                  <p className="text-[11px] text-green-600 dark:text-green-400">Amount payable</p>
+                  <p className="text-lg font-bold text-green-700 dark:text-green-300 leading-tight">
                     {money(report.footer.amountPayable, currency)}
                   </p>
                 </div>
@@ -497,7 +499,7 @@ export default function RevenueClient() {
               {report.warnings.map((w) => (
                 <p
                   key={w}
-                  className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mt-3"
+                  className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/30 rounded-xl px-3 py-2.5 mt-3"
                 >
                   ⚠ {w}
                 </p>
@@ -505,9 +507,9 @@ export default function RevenueClient() {
             </section>
 
             {/* Owners roster */}
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <h2 className="font-bold text-gray-700">Owners</h2>
-              <p className="text-xs text-gray-400 mt-0.5">
+            <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
+              <h2 className="font-bold text-gray-700 dark:text-gray-200">Owners</h2>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                 Saved in this browser, so next month&apos;s upload fills itself in.
               </p>
 
@@ -520,14 +522,14 @@ export default function RevenueClient() {
                     {o}
                     <button
                       onClick={() => removeOwner(o)}
-                      className="w-4 h-4 rounded-full hover:bg-black/10 leading-none"
+                      className="w-4 h-4 rounded-full hover:bg-black/10 dark:hover:bg-white/10 leading-none"
                       title={`Remove ${o} and unassign their packs`}
                     >
                       ×
                     </button>
                   </span>
                 ))}
-                {!owners.length && <span className="text-xs text-gray-400">No owners yet. Add one below.</span>}
+                {!owners.length && <span className="text-xs text-gray-400 dark:text-gray-500">No owners yet. Add one below.</span>}
               </div>
 
               <div className="flex gap-2 mt-3">
@@ -541,7 +543,7 @@ export default function RevenueClient() {
                     }
                   }}
                   placeholder="Add an owner name"
-                  className="flex-1 px-3 py-2 rounded-xl border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm bg-white text-gray-900 placeholder:text-gray-400"
+                  className="flex-1 px-3 py-2 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-[#06c755] focus:outline-none text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                 />
                 <button
                   onClick={() => {
@@ -556,14 +558,14 @@ export default function RevenueClient() {
               </div>
 
               {unassignedIds.length > 0 && owners.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
-                  <span className="text-xs text-gray-400">
+                <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50 dark:border-gray-800">
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
                     Assign the {unassignedIds.length} remaining to
                   </span>
                   <select
                     value={bulkOwner}
                     onChange={(e) => setBulkOwner(e.target.value)}
-                    className="px-2 py-1 rounded-lg border border-gray-200 text-xs bg-white text-gray-700"
+                    className="px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100"
                   >
                     <option value="">Choose...</option>
                     {owners.map((o) => (
@@ -577,7 +579,7 @@ export default function RevenueClient() {
                       if (bulkOwner) assignMany(unassignedIds, bulkOwner);
                     }}
                     disabled={!bulkOwner}
-                    className="px-3 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                    className="px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40"
                   >
                     Apply
                   </button>
@@ -588,10 +590,10 @@ export default function RevenueClient() {
             {/* Trend — only meaningful with more than one month. THB once a rate is entered
                 (that's the money the team splits); JPY until then rather than an empty chart. */}
             {chartData && chartData.length > 1 && (
-              <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
                 <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                  <h2 className="font-bold text-gray-700">Income by owner</h2>
-                  <span className="text-xs text-gray-400">
+                  <h2 className="font-bold text-gray-700 dark:text-gray-200">Income by owner</h2>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
                     After-tax {chartCurrency} per month
                     {!rateOk && ' — enter an exchange rate above to see this in THB'}
                   </span>
@@ -602,16 +604,16 @@ export default function RevenueClient() {
                 <div className="mt-4 -ml-2">
                   <ResponsiveContainer width="100%" height={280}>
                     <LineChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
                       <XAxis
                         dataKey="month"
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        axisLine={{ stroke: '#e2e8f0' }}
+                        tick={{ fontSize: 11, fill: chart.axis }}
+                        axisLine={{ stroke: chart.axisLine }}
                         tickLine={false}
                       />
                       <YAxis
                         tickFormatter={compact}
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
+                        tick={{ fontSize: 11, fill: chart.axis }}
                         axisLine={false}
                         tickLine={false}
                         width={44}
@@ -634,9 +636,13 @@ export default function RevenueClient() {
                         contentStyle={{
                           fontSize: 12,
                           borderRadius: 12,
-                          border: '1px solid #e2e8f0',
+                          backgroundColor: chart.tooltipBg,
+                          border: `1px solid ${chart.tooltipBorder}`,
+                          color: chart.tooltipText,
                           boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
                         }}
+                        labelStyle={{ color: chart.tooltipText }}
+                        itemStyle={{ color: chart.tooltipText }}
                       />
                       <Legend
                         // null disables recharts' own sort, so the legend keeps the Line render
@@ -644,7 +650,7 @@ export default function RevenueClient() {
                         // left. (Its default reorders to alphabetical.)
                         itemSorter={null}
                         formatter={(v: string) => (
-                          <span style={{ fontSize: 11, color: '#64748b' }}>
+                          <span style={{ fontSize: 11, color: chart.legend }}>
                             {v === UNASSIGNED ? 'Unassigned' : v}
                           </span>
                         )}
@@ -666,7 +672,7 @@ export default function RevenueClient() {
                   </ResponsiveContainer>
                 </div>
 
-                <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2 leading-relaxed">
                   Each line is one owner&apos;s after-tax share for that month, using your current
                   owner assignments applied to every month. Unassigned packs are the dashed line.
                   {rateOk &&
@@ -678,21 +684,21 @@ export default function RevenueClient() {
             {/* Result — deliberately ABOVE the per-pack list: it's the answer you came for, and
                 the assignment list runs to ~90 rows, so burying the totals under it means
                 scrolling past everything to see whether the split moved. */}
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <h2 className="font-bold text-gray-700">Revenue sharing</h2>
+                <h2 className="font-bold text-gray-700 dark:text-gray-200">Revenue sharing</h2>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={copy}
                     title="Copy the owner-split summary to the clipboard"
-                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                   >
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                   <button
                     onClick={download}
                     title="Download the owner-split summary (totals per owner)"
-                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                   >
                     Summary CSV
                   </button>
@@ -706,9 +712,9 @@ export default function RevenueClient() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
-                <label htmlFor="fx" className="text-xs text-gray-500">
-                  Exchange rate: <span className="font-medium text-gray-700">1 JPY</span> =
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50 dark:border-gray-800">
+                <label htmlFor="fx" className="text-xs text-gray-500 dark:text-gray-400">
+                  Exchange rate: <span className="font-medium text-gray-700 dark:text-gray-200">1 JPY</span> =
                 </label>
                 <input
                   id="fx"
@@ -719,10 +725,10 @@ export default function RevenueClient() {
                   value={rate}
                   onChange={(e) => updateRate(e.target.value)}
                   placeholder="0.2315"
-                  className="w-24 px-2 py-1 rounded-lg border-2 border-gray-200 focus:border-[#06c755] focus:outline-none text-sm bg-white text-gray-900 placeholder:text-gray-300"
+                  className="w-24 px-2 py-1 rounded-lg border-2 border-gray-200 dark:border-gray-700 focus:border-[#06c755] focus:outline-none text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-300 dark:placeholder:text-gray-500"
                 />
-                <span className="text-xs text-gray-500">THB</span>
-                <span className="text-[11px] text-gray-400">
+                <span className="text-xs text-gray-500 dark:text-gray-400">THB</span>
+                <span className="text-[11px] text-gray-400 dark:text-gray-500">
                   {rateOk
                     ? months.length > 1
                       ? 'This one rate is applied to every loaded month, so THB for older months is an estimate — each month really settled at its own rate.'
@@ -732,7 +738,7 @@ export default function RevenueClient() {
               </div>
 
               {split.unassignedCount > 0 && (
-                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mt-3">
+                <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/30 rounded-xl px-3 py-2.5 mt-3">
                   ⚠ {split.unassignedCount === 1
                     ? '1 pack still has no owner. Its'
                     : `${split.unassignedCount} packs still have no owner. Their`}{' '}
@@ -743,7 +749,7 @@ export default function RevenueClient() {
               <div className="overflow-x-auto mt-4">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-[11px] text-gray-400 border-b border-gray-100">
+                    <tr className="text-[11px] text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-800">
                       <th className="text-left font-medium py-2">Owner</th>
                       <th className="text-right font-medium py-2">Packs</th>
                       <th className="text-right font-medium py-2 hidden sm:table-cell whitespace-nowrap">
@@ -755,13 +761,13 @@ export default function RevenueClient() {
                       <th className="text-right font-medium py-2 whitespace-nowrap">After tax (THB)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                     {split.shares.map((s, i) => {
                       const isUn = s.owner === UNASSIGNED;
                       const open = expanded.has(s.owner);
                       return (
                         <Fragment key={s.owner}>
-                          <tr className={isUn ? 'bg-amber-50/50' : ''}>
+                          <tr className={isUn ? 'bg-amber-50/50 dark:bg-amber-500/10' : ''}>
                             <td className="py-2.5">
                               <button
                                 onClick={() => toggleOwner(s.owner)}
@@ -770,7 +776,7 @@ export default function RevenueClient() {
                                 className="flex items-center gap-1.5 group"
                               >
                                 <span
-                                  className={`text-[9px] text-gray-400 group-hover:text-gray-600 transition-transform ${
+                                  className={`text-[9px] text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-transform ${
                                     open ? 'rotate-90' : ''
                                   }`}
                                   aria-hidden
@@ -779,19 +785,19 @@ export default function RevenueClient() {
                                 </span>
                                 <span
                                   className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                    isUn ? 'bg-amber-50 text-amber-700 border-amber-200' : colorOf(s.owner)
+                                    isUn ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30' : colorOf(s.owner)
                                   }`}
                                 >
                                   {isUn ? 'Unassigned' : s.owner}
                                 </span>
                               </button>
                             </td>
-                            <td className="text-right text-gray-500 text-xs">{s.items}</td>
-                            <td className="text-right text-gray-500 text-xs hidden sm:table-cell">{s.counts}</td>
-                            <td className="text-right text-gray-500 text-xs">{s.pct.toFixed(1)}%</td>
-                            <td className="text-right text-gray-700">{money(s.pretax, null)}</td>
-                            <td className="text-right font-bold text-green-700">{money(s.afterTax, null)}</td>
-                            <td className="text-right font-bold text-gray-700">{thb(thbParts?.[i])}</td>
+                            <td className="text-right text-gray-500 dark:text-gray-400 text-xs">{s.items}</td>
+                            <td className="text-right text-gray-500 dark:text-gray-400 text-xs hidden sm:table-cell">{s.counts}</td>
+                            <td className="text-right text-gray-500 dark:text-gray-400 text-xs">{s.pct.toFixed(1)}%</td>
+                            <td className="text-right text-gray-700 dark:text-gray-200">{money(s.pretax, null)}</td>
+                            <td className="text-right font-bold text-green-700 dark:text-green-300">{money(s.afterTax, null)}</td>
+                            <td className="text-right font-bold text-gray-700 dark:text-gray-200">{thb(thbParts?.[i])}</td>
                           </tr>
 
                           {/* One real <tr> per pack, so every figure lands under the header it
@@ -802,14 +808,14 @@ export default function RevenueClient() {
                             s.packs.map((p, n) => (
                               <tr
                                 key={p.itemId}
-                                className={`text-xs ${isUn ? 'bg-amber-50/30' : 'bg-gray-50/60'}`}
+                                className={`text-xs ${isUn ? 'bg-amber-50/30 dark:bg-amber-500/10' : 'bg-gray-50/60 dark:bg-gray-800/60'}`}
                               >
                                 <td className="py-1.5 pl-5">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <span className="w-4 text-right text-[10px] text-gray-400 tabular-nums flex-shrink-0">
+                                    <span className="w-4 text-right text-[10px] text-gray-400 dark:text-gray-500 tabular-nums flex-shrink-0">
                                       {n + 1}
                                     </span>
-                                    <span className="w-6 h-6 rounded bg-white border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                    <span className="w-6 h-6 rounded bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 overflow-hidden flex-shrink-0 flex items-center justify-center">
                                       {p.type === 'Sticker' ? (
                                         <Image
                                           src={`https://stickershop.line-scdn.net/stickershop/v1/product/${p.itemId}/LINEStorePC/main.png`}
@@ -823,27 +829,27 @@ export default function RevenueClient() {
                                           }}
                                         />
                                       ) : (
-                                        <span className="text-[8px] text-gray-300">{p.type.slice(0, 2)}</span>
+                                        <span className="text-[8px] text-gray-300 dark:text-gray-600">{p.type.slice(0, 2)}</span>
                                       )}
                                     </span>
-                                    <span className="truncate text-gray-600" title={p.title}>
+                                    <span className="truncate text-gray-600 dark:text-gray-300" title={p.title}>
                                       {p.title}
                                     </span>
                                   </div>
                                 </td>
                                 {/* Packs: a single pack has no count of its own. */}
                                 <td />
-                                <td className="text-right text-gray-400 hidden sm:table-cell">{p.counts}</td>
-                                <td className="text-right text-gray-400">
+                                <td className="text-right text-gray-400 dark:text-gray-500 hidden sm:table-cell">{p.counts}</td>
+                                <td className="text-right text-gray-400 dark:text-gray-500">
                                   {report.rowTotal > 0
                                     ? `${((p.revenue / report.rowTotal) * 100).toFixed(1)}%`
                                     : '—'}
                                 </td>
-                                <td className="text-right text-gray-600">{money(p.revenue, null)}</td>
-                                <td className="text-right text-green-700/80">
+                                <td className="text-right text-gray-600 dark:text-gray-300">{money(p.revenue, null)}</td>
+                                <td className="text-right text-green-700/80 dark:text-green-300/80">
                                   {money(packBreakdown?.[i]?.jpy?.[n], null)}
                                 </td>
-                                <td className="text-right text-gray-600">
+                                <td className="text-right text-gray-600 dark:text-gray-300">
                                   {thb(packBreakdown?.[i]?.thb?.[n])}
                                 </td>
                               </tr>
@@ -853,15 +859,15 @@ export default function RevenueClient() {
                     })}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t-2 border-gray-100 font-bold">
-                      <td className="py-2.5 text-gray-700">Total</td>
-                      <td className="text-right text-gray-500 text-xs">{report.items.length}</td>
-                      <td className="text-right text-gray-500 text-xs hidden sm:table-cell">
+                    <tr className="border-t-2 border-gray-100 dark:border-gray-800 font-bold">
+                      <td className="py-2.5 text-gray-700 dark:text-gray-200">Total</td>
+                      <td className="text-right text-gray-500 dark:text-gray-400 text-xs">{report.items.length}</td>
+                      <td className="text-right text-gray-500 dark:text-gray-400 text-xs hidden sm:table-cell">
                         {split.shares.reduce((a, s) => a + s.counts, 0)}
                       </td>
-                      <td className="text-right text-gray-500 text-xs">100%</td>
-                      <td className="text-right text-gray-700">{money(report.rowTotal, null)}</td>
-                      <td className="text-right text-green-700">
+                      <td className="text-right text-gray-500 dark:text-gray-400 text-xs">100%</td>
+                      <td className="text-right text-gray-700 dark:text-gray-200">{money(report.rowTotal, null)}</td>
+                      <td className="text-right text-green-700 dark:text-green-300">
                         {/* Every row shows '—' when after-tax is unknown; the total must not
                             contradict them with a confident 0. */}
                         {split.shares.some((s) => s.afterTax != null)
@@ -871,7 +877,7 @@ export default function RevenueClient() {
                             )
                           : '—'}
                       </td>
-                      <td className="text-right text-gray-700">
+                      <td className="text-right text-gray-700 dark:text-gray-200">
                         {thbParts ? thb(thbParts.reduce((a, b) => a + b, 0)) : '—'}
                       </td>
                     </tr>
@@ -879,7 +885,7 @@ export default function RevenueClient() {
                 </table>
               </div>
 
-              <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-3 leading-relaxed">
                 LINE pays in JPY.{' '}
                 {split.exact
                   ? 'After-tax figures split the report’s Amount Payable and add up to it exactly.'
@@ -892,14 +898,14 @@ export default function RevenueClient() {
             </section>
 
             {/* Assign */}
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <h2 className="font-bold text-gray-700">Assign an owner to each pack</h2>
+                <h2 className="font-bold text-gray-700 dark:text-gray-200">Assign an owner to each pack</h2>
                 <span
                   className={`text-xs px-2 py-1 rounded-full ${
                     split.unassignedCount
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                      : 'bg-green-50 text-green-700 border border-green-200'
+                      ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
+                      : 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-500/30'
                   }`}
                 >
                   {split.unassignedCount
@@ -908,12 +914,12 @@ export default function RevenueClient() {
                 </span>
               </div>
 
-              <div className="mt-4 divide-y divide-gray-50">
+              <div className="mt-4 divide-y divide-gray-50 dark:divide-gray-800">
                 {report.items.map((it) => {
                   const owner = ownerOf(it.itemId);
                   return (
                     <div key={it.itemId} className="py-3 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 flex items-center justify-center">
                         {it.type === 'Sticker' ? (
                           <Image
                             src={`https://stickershop.line-scdn.net/stickershop/v1/product/${it.itemId}/LINEStorePC/main.png`}
@@ -927,18 +933,18 @@ export default function RevenueClient() {
                             }}
                           />
                         ) : (
-                          <span className="text-xs text-gray-300">{it.type.slice(0, 2)}</span>
+                          <span className="text-xs text-gray-300 dark:text-gray-600">{it.type.slice(0, 2)}</span>
                         )}
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-700 truncate">{it.title}</p>
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{it.title}</p>
                         <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                          <span className="text-[11px] text-gray-400">ID {it.itemId}</span>
+                          <span className="text-[11px] text-gray-400 dark:text-gray-500">ID {it.itemId}</span>
                           {it.byCountry.map((c) => (
                             <span
                               key={c.country}
-                              className="text-[10px] text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5"
+                              className="text-[10px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded px-1.5 py-0.5"
                               title={`${c.country}: ${money(c.revenue, currency)} from ${c.counts} sales`}
                             >
                               {c.country} {c.revenue.toLocaleString()}
@@ -948,15 +954,15 @@ export default function RevenueClient() {
                       </div>
 
                       <div className="text-right flex-shrink-0 hidden sm:block">
-                        <p className="text-sm font-bold text-gray-700">{money(it.revenue, null)}</p>
-                        <p className="text-[11px] text-gray-400">{it.counts} sales</p>
+                        <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{money(it.revenue, null)}</p>
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500">{it.counts} sales</p>
                       </div>
 
                       <select
                         value={owner ?? ''}
                         onChange={(e) => assign(it.itemId, e.target.value || null)}
                         className={`text-xs rounded-lg border px-2 py-1.5 flex-shrink-0 max-w-[9rem] ${
-                          owner ? colorOf(owner) : 'bg-amber-50 text-amber-700 border-amber-200'
+                          owner ? colorOf(owner) : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30'
                         }`}
                       >
                         <option value="">Unassigned</option>
@@ -977,7 +983,7 @@ export default function RevenueClient() {
                 onClick={() => {
                   if (confirm('Forget every owner name and assignment saved in this browser?')) clearAll();
                 }}
-                className="text-xs text-gray-400 hover:text-red-500"
+                className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400"
               >
                 Reset saved owners
               </button>

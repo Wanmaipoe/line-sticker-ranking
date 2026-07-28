@@ -52,26 +52,26 @@ export default async function CreatorsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <JsonLd data={CREATORS_JSONLD} />
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3">
           <BackButton />
-          <span className="text-gray-300">·</span>
-          <a href="/" className="text-sm text-green-600 hover:underline">Main</a>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <a href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">Main</a>
         </div>
 
         <div className="mt-5 mb-2">
-          <h1 className="text-xl font-bold text-gray-800">🏅 LINE Creator Ranking</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">🏅 LINE Creator Ranking</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Which creators dominate the charts in Japan, Thailand &amp; Taiwan (latest top 100).
           </p>
-          <p className="text-xs text-gray-400 mt-1">Switch market with the buttons, or hover a number for the breakdown.</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Switch market with the buttons, or hover a number for the breakdown.</p>
         </div>
 
         <CreatorsLeaderboard boards={boards} />
 
-        <p className="text-xs text-gray-400 mt-3">Updated hourly from store.line.me</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Updated hourly from store.line.me</p>
       </div>
     </div>
   );

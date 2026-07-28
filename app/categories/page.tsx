@@ -45,21 +45,21 @@ export default async function CategoriesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <JsonLd data={CATEGORIES_JSONLD} />
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3">
           <BackButton />
-          <span className="text-gray-300">·</span>
-          <Link href="/" className="text-sm text-green-600 hover:underline">Main</Link>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <Link href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">Main</Link>
         </div>
 
         <div className="mt-5 mb-2">
-          <h1 className="text-xl font-bold text-gray-800">🗂️ LINE Sticker Category Rankings</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">🗂️ LINE Sticker Category Rankings</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             The top packs of each sticker type charting in Japan, Thailand and Taiwan right now.
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             Pick a category, compare the three markets. Read live from LINE&apos;s top-500 per country.
           </p>
         </div>

@@ -6,6 +6,7 @@ import "./globals.css";
 import { SITE_URL, SITE_NAME } from "@/lib/seo";
 import JsonLd from "@/components/JsonLd";
 import ClarityAnalytics from "@/components/ClarityAnalytics";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,11 +24,12 @@ const TITLE = "LINE Sticker Ranking — Live Top 500 Charts, Updated Hourly";
 const DESCRIPTION =
   "Live LINE sticker ranking updated every hour. Top 500 charts for Japan, Thailand & Taiwan, 30-day rank history and LINE creator rankings.";
 
-// This site is a single light theme. Declaring color-scheme: light keeps the browser from
-// applying its dark-mode user-agent styling to form controls (which made typed input text render
-// white-on-white for visitors whose OS/browser is in dark mode). Emits <meta name="color-scheme">.
+// The site supports both themes; "light dark" tells the browser its UA styling may go either way
+// (the actual per-visitor theme is set pre-paint by THEME_INIT + the CSS color-scheme that follows
+// the .dark class). Do NOT pin this back to "light" — that reintroduces the white-on-white input bug
+// in dark mode by freezing native form controls to the light palette.
 export const viewport: Viewport = {
-  colorScheme: "light",
+  colorScheme: "light dark",
 };
 
 export const metadata: Metadata = {
@@ -124,13 +126,30 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // No className on <html>: the pre-paint theme script (first child of <body>) adds a `.dark`/`.light`
+  // class to <html>, and React only leaves script-added attributes alone on <html>/<body> when it
+  // isn't managing that attribute via a prop. Passing className to <html> would make React reconcile
+  // it on hydration and WIPE the script's class. So font vars + utilities live on <body>, and the
+  // html height is set in globals.css. suppressHydrationWarning covers the script's attribute changes.
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-full flex flex-col`}
+      >
+        {/* Re-applies a SAVED manual theme override (localStorage `theme`) before paint, so a visitor
+            who picked a theme different from their OS doesn't flash the OS theme on load. No saved
+            choice => no-op: the CSS media query in globals.css already follows the OS with zero JS, so
+            the core "match my browser" behavior holds even if this never runs. Raw inline <script> in
+            the SSR HTML stream (parsed + executed before body paint); keep it the FIRST child of
+            <body>. Keep in sync with ThemeToggle's class/colorScheme logic. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light')return;var e=document.documentElement;e.classList.add(t);e.style.colorScheme=t;}catch(e){}})();",
+          }}
+        />
         {children}
+        <ThemeToggle />
         <JsonLd data={SITE_JSONLD} />
         <Analytics />
         <SpeedInsights />

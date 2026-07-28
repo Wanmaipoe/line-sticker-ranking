@@ -42,16 +42,16 @@ export default function AdPopup() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-30 bg-gray-900 text-white text-xs font-medium px-3.5 py-2 rounded-full shadow-lg hover:bg-gray-800 transition-colors"
+        className="fixed bottom-4 right-4 z-30 bg-gray-900 dark:bg-gray-700 text-white text-xs font-medium px-3.5 py-2 rounded-full shadow-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
       >
         📢 For Advertising
       </button>
 
       {open && (
-        <div className="fixed top-4 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+        <div className="fixed top-4 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-xl dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 overflow-hidden">
           <button
             onClick={() => setOpen(false)}
-            className="absolute top-2 right-2 z-10 bg-white/80 backdrop-blur rounded-full w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-700 text-xl leading-none shadow"
+            className="absolute top-2 right-2 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur rounded-full w-7 h-7 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl leading-none shadow"
             aria-label="Close"
           >
             ×
@@ -67,8 +67,8 @@ export default function AdPopup() {
               />
             ) : (
               <div className="p-6">
-                <h3 className="font-bold text-gray-800 text-lg mb-2">📢 For Advertising</h3>
-                <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                <h3 className="font-bold text-gray-800 dark:text-gray-100 text-lg mb-2">📢 For Advertising</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
                   Want to reach LINE sticker fans &amp; creators? Get in touch:
                 </p>
                 <div className="text-center bg-green-500 text-white text-sm font-medium py-2.5 rounded-xl">

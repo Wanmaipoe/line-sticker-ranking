@@ -16,10 +16,10 @@ const MIN_TOTAL_FOR_TAB = 3;
 const INITIAL_VISIBLE = 50;
 
 function rankClass(rank: number) {
-  if (rank === 1) return 'text-yellow-500';
-  if (rank <= 3) return 'text-orange-400';
-  if (rank <= 10) return 'text-green-600';
-  return 'text-gray-400';
+  if (rank === 1) return 'text-yellow-500 dark:text-yellow-400';
+  if (rank <= 3) return 'text-orange-400 dark:text-orange-300';
+  if (rank <= 10) return 'text-green-600 dark:text-green-400';
+  return 'text-gray-400 dark:text-gray-500';
 }
 
 function CategoryColumn({
@@ -36,31 +36,31 @@ function CategoryColumn({
   const visible = expanded ? items : items.slice(0, INITIAL_VISIBLE);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
-        <span className="font-bold text-gray-700 text-sm">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50 dark:border-gray-800">
+        <span className="font-bold text-gray-700 dark:text-gray-200 text-sm">
           {info?.flag} {info?.name ?? data.country.toUpperCase()}
         </span>
-        <span className="text-[11px] text-gray-400">{total} in top 500</span>
+        <span className="text-[11px] text-gray-400 dark:text-gray-500">{total} in top 500</span>
       </div>
 
       {items.length === 0 ? (
-        <p className="text-xs text-gray-400 px-4 py-8 text-center">
+        <p className="text-xs text-gray-400 dark:text-gray-500 px-4 py-8 text-center">
           None in {info?.name ?? data.country.toUpperCase()}&apos;s current top 500.
         </p>
       ) : (
-        <ol className="divide-y divide-gray-50">
+        <ol className="divide-y divide-gray-50 dark:divide-gray-800">
           {visible.map((it, i) => (
             <li key={it.id}>
               <a
                 href={`/sticker/${it.id}`}
-                className="flex items-center gap-2.5 px-3 py-2 hover:bg-green-50/60 transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2 hover:bg-green-50/60 dark:hover:bg-green-500/10 transition-colors"
               >
                 {/* Category position (#1 within this type), not the overall rank. */}
-                <span className="w-6 text-center text-sm font-bold text-gray-400 flex-shrink-0">
+                <span className="w-6 text-center text-sm font-bold text-gray-400 dark:text-gray-500 flex-shrink-0">
                   {i + 1}
                 </span>
-                <span className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 flex items-center justify-center">
+                <span className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 flex items-center justify-center">
                   <Image
                     src={
                       it.image_url ??
@@ -77,8 +77,8 @@ function CategoryColumn({
                   />
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm text-gray-700 truncate">{it.name}</span>
-                  {it.author && <span className="block text-[11px] text-gray-400 truncate">{it.author}</span>}
+                  <span className="block text-sm text-gray-700 dark:text-gray-200 truncate">{it.name}</span>
+                  {it.author && <span className="block text-[11px] text-gray-400 dark:text-gray-500 truncate">{it.author}</span>}
                 </span>
                 {/* The pack's overall rank in the country, for context. */}
                 <span className={`text-[11px] font-medium flex-shrink-0 ${rankClass(it.rank)}`}>
@@ -94,7 +94,7 @@ function CategoryColumn({
         <button
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="w-full text-xs font-medium text-green-600 hover:bg-green-50 py-2.5 border-t border-gray-50 transition-colors"
+          className="w-full text-xs font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 py-2.5 border-t border-gray-50 dark:border-gray-800 transition-colors"
         >
           {expanded ? '↑ Show less' : `↓ View all ${items.length}`}
         </button>
@@ -155,7 +155,7 @@ export default function CategoriesClient({
 
   if (!data.length || !available.length) {
     return (
-      <p className="mt-6 text-sm text-gray-400 bg-white border border-gray-100 rounded-2xl px-4 py-10 text-center">
+      <p className="mt-6 text-sm text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl px-4 py-10 text-center">
         No category data available right now. It fills in as the scraper runs.
       </p>
     );
@@ -179,11 +179,11 @@ export default function CategoriesClient({
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 effective === c.key
                   ? 'bg-[#06c755] text-white border-[#06c755]'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
             >
               <span aria-hidden>{c.emoji}</span> {c.label}
-              <span className={effective === c.key ? 'text-green-100' : 'text-gray-400'}>{c.total}</span>
+              <span className={effective === c.key ? 'text-green-100' : 'text-gray-400 dark:text-gray-500'}>{c.total}</span>
             </button>
           ))}
         </div>
@@ -191,13 +191,13 @@ export default function CategoriesClient({
           onClick={refresh}
           disabled={refreshing}
           title="Fetch the latest rankings now"
-          className="text-xs bg-green-50 text-green-600 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex-shrink-0"
+          className="text-xs bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 px-3 py-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors disabled:opacity-50 flex-shrink-0"
         >
           {refreshing ? 'Loading…' : '↻ Refresh'}
         </button>
       </div>
 
-      {cat && <p className="text-xs text-gray-400 mt-2">{cat.blurb}</p>}
+      {cat && <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{cat.blurb}</p>}
 
       {/* Three markets side by side (stacks on mobile). */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
@@ -209,7 +209,7 @@ export default function CategoriesClient({
       </div>
 
       {latestDate && (
-        <p className="text-xs text-gray-400 mt-4">
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
           Ranked by each pack&apos;s overall position in its market&apos;s top 500. Updated hourly from store.line.me.
         </p>
       )}

@@ -90,19 +90,19 @@ export default function ThaiLandingPage() {
   return (
     // The root layout is lang="en"; this wrapper re-declares Thai for this page's content
     // (screen readers + non-Google engines — Google itself detects language from the text).
-    <div lang="th" className="min-h-screen bg-gray-50">
+    <div lang="th" className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-4xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-gray-800 text-lg">LineStickerRanking</span>
-          <a href="/" className="text-sm text-green-600 hover:underline">English</a>
+          <span className="font-bold text-gray-800 dark:text-gray-100 text-lg">LineStickerRanking</span>
+          <a href="/" className="text-sm text-green-600 dark:text-green-400 hover:underline">English</a>
         </div>
 
         {/* Hero */}
         <div className="text-center mt-10 mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">
             อันดับสติกเกอร์ไลน์ อัปเดตทุกชั่วโมง
           </h1>
-          <p className="text-gray-500 mt-3 max-w-2xl mx-auto">
+          <p className="text-gray-500 dark:text-gray-400 mt-3 max-w-2xl mx-auto">
             ดูสติกเกอร์ไลน์ขายดี Top 500 จากหน้า Top Creators ของ LINE Store
             พร้อมกราฟอันดับย้อนหลัง 30 วัน ครอบคลุม 3 ประเทศ ไทย ญี่ปุ่น และไต้หวัน
           </p>
@@ -115,13 +115,13 @@ export default function ThaiLandingPage() {
             </a>
             <a
               href="/creators"
-              className="bg-white text-green-600 border border-green-200 font-medium px-5 py-2.5 rounded-xl hover:bg-green-50 transition-colors"
+              className="bg-white dark:bg-gray-900 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 font-medium px-5 py-2.5 rounded-xl hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors"
             >
               🏅 อันดับครีเอเตอร์
             </a>
             <a
               href="/"
-              className="bg-white text-gray-600 border border-gray-200 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-100 transition-colors"
+              className="bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               🌏 ดูครบทุกประเทศ
             </a>
@@ -131,35 +131,35 @@ export default function ThaiLandingPage() {
         {/* Features */}
         <div className="grid sm:grid-cols-2 gap-4 mt-10">
           {FEATURES.map((f) => (
-            <div key={f.title} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <h2 className="font-bold text-gray-700">
+            <div key={f.title} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
+              <h2 className="font-bold text-gray-700 dark:text-gray-200">
                 {f.icon} {f.title}
               </h2>
-              <p className="text-sm text-gray-500 mt-1.5">{f.body}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1.5">{f.body}</p>
             </div>
           ))}
         </div>
 
         {/* Creator how-to — targets "เช็คอันดับ/ยอดขายสติกเกอร์ของตัวเอง" intent */}
-        <div className="bg-white rounded-2xl shadow-sm border border-green-100 p-6 mt-8">
-          <h2 className="font-bold text-gray-800 text-lg">เช็คอันดับสติกเกอร์ของตัวเอง</h2>
-          <p className="text-sm text-gray-500 mt-2">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-green-100 dark:border-green-500/20 p-6 mt-8">
+          <h2 className="font-bold text-gray-800 dark:text-gray-100 text-lg">เช็คอันดับสติกเกอร์ของตัวเอง</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
             ถ้าคุณเป็นครีเอเตอร์ที่ขายสติกเกอร์ใน LINE Creators Market
             แล้วอยากรู้ว่าเซ็ตของตัวเองไปอยู่ตรงไหนของชาร์ต ทำแบบนี้ได้เลย
           </p>
-          <ol className="list-decimal list-inside text-sm text-gray-600 mt-3 space-y-1.5">
+          <ol className="list-decimal list-inside text-sm text-gray-600 dark:text-gray-300 mt-3 space-y-1.5">
             <li>
-              ไปที่<a href="/" className="text-green-600 hover:underline">หน้าหลัก</a>{' '}
+              ไปที่<a href="/" className="text-green-600 dark:text-green-400 hover:underline">หน้าหลัก</a>{' '}
               แล้วพิมพ์ชื่อสติกเกอร์ หรือชื่อครีเอเตอร์ของคุณในช่องค้นหา
             </li>
             <li>คลิกที่สติกเกอร์ เพื่อดูอันดับปัจจุบันของแต่ละประเทศ พร้อมกราฟย้อนหลัง 30 วัน</li>
             <li>กด ♥ Favorites เก็บไว้ แล้วกลับมาตามดูความเคลื่อนไหวได้ทุกวัน</li>
           </ol>
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
             หมายเหตุ: ระบบเก็บเฉพาะสติกเกอร์ที่เคยติด Top 500 ของแต่ละประเทศ
             ถ้าเซ็ตของคุณยังไม่เคยติดชาร์ต จะยังค้นหาไม่เจอ
           </p>
-          <p className="text-sm text-gray-500 mt-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
             หลายคนค้นหาวิธีเช็คยอดขายสติกเกอร์ไลน์ ตัวเลขยอดขายจริงดูได้ใน LINE Creators Market
             ของคุณเองเท่านั้น ส่วนเว็บนี้ช่วยให้เห็นว่าสติกเกอร์ของคุณขายดีแค่ไหนเมื่อเทียบกับทั้งตลาด
             ผ่านอันดับบนชาร์ต Top 500 ที่ขยับทุกชั่วโมง
@@ -168,30 +168,30 @@ export default function ThaiLandingPage() {
 
         {/* FAQ */}
         <div className="mt-8">
-          <h2 className="font-bold text-gray-800 text-lg mb-3">คำถามที่พบบ่อย</h2>
+          <h2 className="font-bold text-gray-800 dark:text-gray-100 text-lg mb-3">คำถามที่พบบ่อย</h2>
           <div className="space-y-3">
             {FAQ.map((item) => (
-              <div key={item.q} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                <h3 className="font-semibold text-gray-700 text-sm">{item.q}</h3>
-                <p className="text-sm text-gray-500 mt-1">{item.a}</p>
+              <div key={item.q} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
+                <h3 className="font-semibold text-gray-700 dark:text-gray-200 text-sm">{item.q}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{item.a}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <footer className="border-t border-gray-100 mt-12 py-8 text-center text-xs text-gray-400 space-y-1">
+        <footer className="border-t border-gray-100 dark:border-gray-800 mt-12 py-8 text-center text-xs text-gray-400 dark:text-gray-500 space-y-1">
           <p>
-            <a href="/" className="hover:text-green-600">English</a>
+            <a href="/" className="hover:text-green-600 dark:hover:text-green-400">English</a>
             {' · '}
-            <a href="/ja" lang="ja" className="hover:text-green-600">日本語</a>
+            <a href="/ja" lang="ja" className="hover:text-green-600 dark:hover:text-green-400">日本語</a>
             {' · '}
-            <a href="/zh-hant" lang="zh-Hant" className="hover:text-green-600">繁體中文</a>
+            <a href="/zh-hant" lang="zh-Hant" className="hover:text-green-600 dark:hover:text-green-400">繁體中文</a>
             {' · '}
-            <a href="/country/th" className="hover:text-green-600">อันดับประเทศไทย</a>
+            <a href="/country/th" className="hover:text-green-600 dark:hover:text-green-400">อันดับประเทศไทย</a>
             {' · '}
-            <a href="/creators" className="hover:text-green-600">อันดับครีเอเตอร์</a>
+            <a href="/creators" className="hover:text-green-600 dark:hover:text-green-400">อันดับครีเอเตอร์</a>
           </p>
-          <p className="font-semibold text-gray-500">11tumarai Company</p>
+          <p className="font-semibold text-gray-500 dark:text-gray-400">11tumarai Company</p>
         </footer>
       </div>
       <JsonLd

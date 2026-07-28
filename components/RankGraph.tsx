@@ -13,6 +13,7 @@ import {
   ReferenceArea,
 } from 'recharts';
 import { COUNTRY_MAP } from '@/lib/countries';
+import { useChartColors, useTheme } from '@/lib/theme';
 
 interface DataPoint {
   country: string;
@@ -78,6 +79,8 @@ type Row = { t: number; label: string } & Record<string, number | string>;
 
 export default function RankGraph({ allData, selectedCountry, viewMode, onViewModeChange }: Props) {
   const [freq, setFreq] = useState<'daily' | 'hourly'>('daily');
+  const chart = useChartColors();
+  const isDark = useTheme() === 'dark';
 
   const present = FEATURED.filter((cc) => allData.some((d) => d.country === cc));
   const uniqueDates = new Set(allData.map((d) => d.snapshot_date)).size;
@@ -189,7 +192,7 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
         {viewMode === 'all' ? (
           <div className="flex-1 min-w-[120px]">
             <p className="font-semibold text-sm">🌏 All countries</p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
               {freq === 'daily' ? 'Last 30 days' : `Last ${HOURLY_WINDOW_H}h · hourly`}
             </p>
           </div>
@@ -198,7 +201,7 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
             <span className="text-2xl">{selInfo?.flag ?? '🌏'}</span>
             <div>
               <p className="font-semibold text-sm">{selInfo?.name ?? selectedCountry.toUpperCase()}</p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-400 dark:text-gray-500">
                 {freq === 'daily' ? 'Last 30 days' : `Last ${HOURLY_WINDOW_H}h · hourly`}
               </p>
             </div>
@@ -208,9 +211,9 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
         {trend && (
           <span
             className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              trend.dir === 'up' ? 'bg-green-100 text-green-700'
-                : trend.dir === 'down' ? 'bg-red-100 text-red-500'
-                : 'bg-gray-100 text-gray-500'
+              trend.dir === 'up' ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                : trend.dir === 'down' ? 'bg-red-100 text-red-500 dark:bg-red-500/15 dark:text-red-400'
+                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
             }`}
           >
             {trend.dir === 'up' ? `↑ Up ${trend.diff}` : trend.dir === 'down' ? `↓ Down ${trend.diff}` : '— Flat'}
@@ -218,26 +221,26 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
         )}
 
         {/* All / Each toggle */}
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
           <button
             onClick={() => onViewModeChange('all')}
-            className={`px-2.5 py-1 transition-colors ${viewMode === 'all' ? 'bg-green-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+            className={`px-2.5 py-1 transition-colors ${viewMode === 'all' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
           >
             All Country
           </button>
           <button
             onClick={() => onViewModeChange('each')}
-            className={`px-2.5 py-1 transition-colors ${viewMode === 'each' ? 'bg-green-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+            className={`px-2.5 py-1 transition-colors ${viewMode === 'each' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
           >
             Each country
           </button>
         </div>
 
         {/* Daily / Hourly toggle */}
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
           <button
             onClick={() => setFreq('daily')}
-            className={`px-2.5 py-1 transition-colors ${freq === 'daily' ? 'bg-green-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+            className={`px-2.5 py-1 transition-colors ${freq === 'daily' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
           >
             Daily
           </button>
@@ -246,8 +249,8 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
             disabled={!hasHourly}
             className={`px-2.5 py-1 transition-colors ${
               freq === 'hourly' ? 'bg-green-500 text-white'
-                : hasHourly ? 'bg-white text-gray-500 hover:bg-gray-50'
-                : 'bg-white text-gray-300 cursor-not-allowed'
+                : hasHourly ? 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : 'bg-white dark:bg-gray-900 text-gray-300 dark:text-gray-600 cursor-not-allowed'
             }`}
             title={!hasHourly ? 'No recent hourly data yet' : undefined}
           >
@@ -260,7 +263,7 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
       {viewMode === 'all' && present.length > 0 && (
         <div className="flex items-center gap-3 flex-wrap mb-2">
           {present.map((cc) => (
-            <span key={cc} className="flex items-center gap-1 text-xs text-gray-500">
+            <span key={cc} className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
               <span className="inline-block w-3 h-0.5 rounded" style={{ backgroundColor: COLORS[cc] }} />
               {COUNTRY_MAP[cc]?.flag} {COUNTRY_MAP[cc]?.name ?? cc.toUpperCase()}
             </span>
@@ -269,26 +272,26 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
       )}
 
       {hasOverflow && (
-        <p className="text-[11px] text-gray-400 mb-1">
-          A line dropping into the <span className="text-red-400 font-medium">Over&nbsp;#500</span> band means the sticker
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">
+          A line dropping into the <span className="text-red-400 dark:text-red-400 font-medium">Over&nbsp;#500</span> band means the sticker
           fell out of that country&apos;s top 500 (we only track the top 500).
         </p>
       )}
 
       {noData || chartRows.length === 0 ? (
-        <div className="flex items-center justify-center h-44 text-sm text-gray-400">
+        <div className="flex items-center justify-center h-44 text-sm text-gray-400 dark:text-gray-500">
           {noData ? 'No history data for this view yet.' : `No ${freq} snapshots yet — it fills in as the scraper runs.`}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={chartRows} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} interval="preserveStartEnd" />
+            <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: chart.axis }} interval="preserveStartEnd" />
             <YAxis
               reversed
               domain={yDomain}
               ticks={yTicks}
-              tick={{ fontSize: 10, fill: '#9ca3af' }}
+              tick={{ fontSize: 10, fill: chart.axis }}
               tickFormatter={(v) => (hasOverflow && v === overLevel ? 'Over 500' : `#${v}`)}
               width={hasOverflow ? 50 : 34}
             />
@@ -297,15 +300,16 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
                 hasOverflow && value === overLevel ? 'Over #500' : `#${value}`,
                 COUNTRY_MAP[name as string]?.name ?? String(name),
               ]}
-              labelStyle={{ fontSize: 11 }}
-              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+              labelStyle={{ fontSize: 11, color: chart.tooltipText }}
+              itemStyle={{ color: chart.tooltipText }}
+              contentStyle={{ fontSize: 12, borderRadius: 8, backgroundColor: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, color: chart.tooltipText }}
             />
             {/* Shaded "out of top 500" zone at the bottom. */}
             {hasOverflow && (
               <ReferenceArea
                 y1={zoneTop}
                 y2={yDomain[1]}
-                fill="#fef2f2"
+                fill={isDark ? 'rgba(239,68,68,0.14)' : '#fef2f2'}
                 fillOpacity={0.7}
                 ifOverflow="extendDomain"
                 label={{ value: 'Over #500', fontSize: 10, fill: '#ef4444', position: 'insideBottomLeft' }}

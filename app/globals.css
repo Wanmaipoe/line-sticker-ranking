@@ -1,13 +1,85 @@
 @import "tailwindcss";
 
+/* Dark mode has TWO triggers, so the site follows the OS by default (pure CSS — no JS, no flash) AND
+   supports a manual override that WINS over the OS:
+   - System:  @media (prefers-color-scheme: dark), unless the visitor explicitly chose light (.light).
+   - Manual:  an explicit `.dark` / `.light` class on <html>, set by ThemeToggle (and re-applied
+     pre-paint from localStorage by the small script in app/layout.tsx).
+   Tailwind's `dark:` variant is redefined to match EITHER condition. Because the system trigger is
+   plain CSS, the core "match my browser" behavior works even if the override script never runs. */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:not(.light, .light *)) {
+      @slot;
+    }
+  }
+  &:where(.dark, .dark *) {
+    @slot;
+  }
+}
+
 :root {
-  /* This site is intentionally a single light theme. Declare color-scheme: light so the browser
-     renders form controls (input text, placeholders, scrollbars) in light mode even when the OS
-     is in dark mode — otherwise inputs inherited a near-white text color on their white
-     background, making what you typed invisible. */
+  /* color-scheme FOLLOWS the active theme (via the media query + the .dark/.light selectors below)
+     so the browser paints native form controls — typed input text, caret, placeholder, native
+     selects, scrollbars — to match. This is what keeps typed input text legible in BOTH themes; a
+     past bug rendered it white-on-white when the OS was dark and the site was pinned light. */
   color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Chart + sparkline colors. recharts passes stroke/fill/tick colors as SVG *attributes*, which do
+     NOT resolve var() — so RankGraph / RevenueClient read the equivalents from lib/theme.ts (kept in
+     sync with these values) via useChartColors(). Sparkline is a server component and consumes these
+     vars directly through inline style={{ ... }} (the style attribute DOES resolve var()). */
+  --chart-grid: #f0f0f0;
+  --chart-axis: #9ca3af;
+  --chart-axis-line: #e5e7eb;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #e5e7eb;
+  --chart-tooltip-text: #374151;
+  --chart-legend: #64748b;
+  --spark-up: #16a34a;
+  --spark-down: #dc2626;
+  --spark-flat: #9ca3af;
+  --spark-halo: #ffffff;
+}
+
+/* Dark palette. Declared TWICE on purpose — once for the system trigger (OS dark, not explicitly
+   lighted) and once for the explicit `.dark` override — because a CSS @media block and a plain
+   selector can't share one declaration list. KEEP THESE TWO BLOCKS IDENTICAL. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    --background: #0a0a0b;
+    --foreground: #ededed;
+    --chart-grid: #1f2937;
+    --chart-axis: #9ca3af;
+    --chart-axis-line: #374151;
+    --chart-tooltip-bg: #1f2937;
+    --chart-tooltip-border: #374151;
+    --chart-tooltip-text: #e5e7eb;
+    --chart-legend: #9ca3af;
+    --spark-up: #22c55e;
+    --spark-down: #f87171;
+    --spark-flat: #9ca3af;
+    --spark-halo: #111827;
+  }
+}
+:root.dark {
+  color-scheme: dark;
+  --background: #0a0a0b;
+  --foreground: #ededed;
+  --chart-grid: #1f2937;
+  --chart-axis: #9ca3af;
+  --chart-axis-line: #374151;
+  --chart-tooltip-bg: #1f2937;
+  --chart-tooltip-border: #374151;
+  --chart-tooltip-text: #e5e7eb;
+  --chart-legend: #9ca3af;
+  --spark-up: #22c55e;
+  --spark-down: #f87171;
+  --spark-flat: #9ca3af;
+  --spark-halo: #111827;
 }
 
 @theme inline {
@@ -15,6 +87,12 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* Full height moved off the <html> className (which is intentionally absent so the pre-paint theme
+   script's class survives hydration — see app/layout.tsx) onto CSS. */
+html {
+  height: 100%;
 }
 
 body {
