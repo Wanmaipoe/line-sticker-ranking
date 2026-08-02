@@ -54,11 +54,28 @@ function dailySpark(rows?: { d: string; h: number; rank: number }[]): number[] {
 }
 
 export async function getDashboardData(client: Client): Promise<DashboardData> {
-  // For the "Updated …" label only: newest snapshot's date + a created_at from it. Reverse-scan
-  // via idx_rankings_date_hour, LIMIT 1 → ~1 row (not MAX(created_at), which would full-scan).
-  const latestResult = await client.execute(
-    `SELECT snapshot_date, created_at as updated_at FROM rankings ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1`
-  );
+  // For the "Updated …" label only: the newest snapshot across the featured countries. Same
+  // literal-country-list + correlated ORDER BY … LIMIT 1 pattern as lib/db.ts, so every lookup is
+  // an index seek on idx_rankings_country_date_hour (~3 rows read per country). This was the ONLY
+  // query with no country filter — it forced keeping idx_rankings_date_hour, whose entries cost
+  // ~60k rows-written/day. Rewriting it made that index droppable (dropped 2026-08-02); do NOT
+  // reintroduce un-country-filtered ORDER BY snapshot_date queries here or that scan comes back.
+  const ccUnion = FEATURED_COUNTRIES.map((_, i) =>
+    i === 0 ? 'SELECT ? AS country' : 'UNION ALL SELECT ?'
+  ).join(' ');
+  const latestResult = await client.execute({
+    sql: `SELECT snapshot_date, updated_at FROM (
+            SELECT
+              (SELECT snapshot_date FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS snapshot_date,
+              (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS snapshot_hour,
+              (SELECT created_at    FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS updated_at
+            FROM (${ccUnion}) AS c
+          )
+          WHERE snapshot_date IS NOT NULL
+          ORDER BY snapshot_date DESC, snapshot_hour DESC
+          LIMIT 1`,
+    args: [...FEATURED_COUNTRIES],
+  });
   const latestRow = latestResult.rows[0];
   if (!latestRow?.snapshot_date) return { date: null, updatedAt: null, countries: [] };
   const date = latestRow.snapshot_date as string;
