@@ -1,0 +1,371 @@
+'use client';
+
+import { useState } from 'react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceArea,
+} from 'recharts';
+import { COUNTRY_MAP, COUNTRY_ORDER } from '@/lib/countries';
+import { useChartColors, useTheme } from '@/lib/theme';
+
+export interface CreatorGraphPoint {
+  product_id: string;
+  country: string;
+  snapshot_date: string;
+  snapshot_hour: number;
+  snapshot_minute?: number;
+  rank: number;
+}
+
+export interface CreatorGraphPack {
+  id: string;
+  name: string;
+}
+
+interface Props {
+  // The packs to plot, already capped + ordered by the server (best current rank first).
+  packs: CreatorGraphPack[];
+  // Multi-country history for exactly those packs, fetched once server-side. Switching country
+  // filters this in memory, so it costs zero extra DB reads (same trick as the sticker page).
+  history: CreatorGraphPoint[];
+  // Country the creator has the most currently-ranked packs in.
+  defaultCountry: string;
+  // How many of the creator's ranked packs are plotted vs exist, for the "showing N of M" note.
+  rankedTotal: number;
+}
+
+// One colour per plotted pack. Distinct hues that hold up on both light and dark surfaces; the
+// first is LINE green so a single-pack creator still looks on-brand.
+const SERIES_COLORS = [
+  '#06c755', '#ef4444', '#3b82f6', '#f59e0b',
+  '#8b5cf6', '#ec4899', '#14b8a6', '#a16207',
+];
+const HOURLY_WINDOW_H = 48;
+const DAYS = 7;
+
+// Row keys are prefixed so a numeric product id never reaches recharts as a bare numeric dataKey.
+const keyFor = (id: string) => `p${id}`;
+const pad = (n: number) => String(n).padStart(2, '0');
+
+function dayLabel(date: string) {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+}
+function hourLabel(date: string, hour: number, minute = 0) {
+  return new Date(`${date}T${pad(hour)}:${pad(minute)}:00Z`).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+}
+function slotTime(date: string, hour: number, minute = 0) {
+  return Date.parse(`${date}T${pad(hour)}:${pad(minute)}:00Z`);
+}
+
+// A few evenly-spaced, rounded rank ticks between lo and hi (needed when we take manual control of
+// the Y axis to append the "over 500" sentinel tick).
+function axisTicks(lo: number, hi: number): number[] {
+  if (hi <= lo) return [Math.round(lo)];
+  const n = 4;
+  const step = (hi - lo) / (n - 1);
+  return [...new Set(Array.from({ length: n }, (_, i) => Math.round(lo + step * i)))];
+}
+
+type Row = { t: number; label: string } & Record<string, number | string>;
+
+export default function CreatorRankGraph({ packs, history, defaultCountry, rankedTotal }: Props) {
+  const [country, setCountry] = useState(defaultCountry);
+  const [freq, setFreq] = useState<'daily' | 'hourly'>('daily');
+  const chart = useChartColors();
+  const isDark = useTheme() === 'dark';
+
+  // Countries this creator charts in, in the site's standard JP > TH > TW > ID > US order so the
+  // strip is stable across creators and matches the rank table's column order.
+  const present = new Set(history.map((d) => d.country));
+  const available = [...present].sort((a, b) => (COUNTRY_ORDER[a] ?? 99) - (COUNTRY_ORDER[b] ?? 99));
+  // Guard against a stale/absent selection without needing an effect.
+  const active = available.includes(country) ? country : available[0];
+
+  const uniqueDates = new Set(history.map((d) => d.snapshot_date)).size;
+  const uniqueSlots = new Set(history.map((d) => `${d.snapshot_date}-${d.snapshot_hour}`)).size;
+  const hasHourly = uniqueSlots > uniqueDates;
+  const mode: 'daily' | 'hourly' = freq === 'hourly' && hasHourly ? 'hourly' : 'daily';
+
+  // The x domain comes from ALL countries' snapshot times, not just the selected one — every
+  // country is scraped in the same run, so this is the snapshot calendar. A pack missing at one of
+  // these times was outside that country's top 500, which we draw in the "Over #500" band rather
+  // than silently bridging over with connectNulls.
+  const domain: { key: string; t: number; label: string }[] = [];
+  const seriesByPack = new Map<string, Map<string, number>>();
+  const inCountry = history.filter((d) => d.country === active);
+
+  if (mode === 'daily') {
+    for (const date of [...new Set(history.map((d) => d.snapshot_date))].sort((a, b) => a.localeCompare(b))) {
+      domain.push({ key: date, t: Date.parse(`${date}T12:00:00Z`), label: dayLabel(date) });
+    }
+    for (const p of packs) {
+      // Best (lowest) rank per day for this pack in the selected country.
+      const byDay = new Map<string, number>();
+      for (const d of inCountry) {
+        if (d.product_id !== p.id) continue;
+        const cur = byDay.get(d.snapshot_date);
+        if (cur == null || d.rank < cur) byDay.set(d.snapshot_date, d.rank);
+      }
+      seriesByPack.set(p.id, byDay);
+    }
+  } else {
+    // Read-only "last 48h" cutoff for display; a little drift across re-renders is harmless.
+    // eslint-disable-next-line react-hooks/purity
+    const cutoff = Date.now() - HOURLY_WINDOW_H * 3_600_000;
+    const keyOf = (d: CreatorGraphPoint) => `${d.snapshot_date}#${d.snapshot_hour}`;
+    const inWin = history.filter((d) => slotTime(d.snapshot_date, d.snapshot_hour, d.snapshot_minute) >= cutoff);
+    const slots = [...new Map(inWin.map((d) => [keyOf(d), d])).values()].sort(
+      (a, b) =>
+        slotTime(a.snapshot_date, a.snapshot_hour, a.snapshot_minute) -
+        slotTime(b.snapshot_date, b.snapshot_hour, b.snapshot_minute)
+    );
+    for (const d of slots) {
+      domain.push({
+        key: keyOf(d),
+        t: slotTime(d.snapshot_date, d.snapshot_hour, d.snapshot_minute),
+        label: hourLabel(d.snapshot_date, d.snapshot_hour, d.snapshot_minute),
+      });
+    }
+    for (const p of packs) {
+      const m = new Map<string, number>();
+      for (const d of inWin) if (d.product_id === p.id && d.country === active) m.set(keyOf(d), d.rank);
+      seriesByPack.set(p.id, m);
+    }
+  }
+
+  // Only plot packs that actually charted in this country during the window.
+  const shown = packs.filter((p) => (seriesByPack.get(p.id)?.size ?? 0) > 0);
+  const colorOf = (id: string) => SERIES_COLORS[packs.findIndex((p) => p.id === id) % SERIES_COLORS.length];
+
+  // Drop x slots where the ACTIVE country has no data for ANY pack. The domain is built from every
+  // country's snapshot times, but a country can be missing a run (the scraper continues past a
+  // failed country, and ONLY= can scrape a subset). Without this, one such slot reads as "all of
+  // this creator's packs left the top 500 at 14:00", drawing simultaneous cliffs that never
+  // happened. If at least one pack charted at a slot, the country WAS scraped, so the other packs'
+  // absences there are genuine drop-outs.
+  const slotsWithData = new Set<string>();
+  for (const p of shown) for (const k of seriesByPack.get(p.id)!.keys()) slotsWithData.add(k);
+  const activeDomain = domain.filter((d) => slotsWithData.has(d.key));
+
+  // Each pack's own observed span. Cells BEFORE a pack's first appearance are left unset rather
+  // than sentinel-filled: unlike the sticker chart (where every series is the same pack in a
+  // different country, so it demonstrably existed all window), these series are DIFFERENT packs
+  // with different release dates. A pack released 2 days ago has no rows for days 1-5, and marking
+  // those "Over #500" would assert it fell out of a chart it had never entered. Interior gaps stay
+  // sentinel-filled — that is a real drop-out, and connectNulls would otherwise bridge over it.
+  const firstIdx = new Map<string, number>();
+  for (const p of shown) {
+    const m = seriesByPack.get(p.id)!;
+    firstIdx.set(p.id, activeDomain.findIndex((d) => typeof m.get(d.key) === 'number'));
+  }
+
+  const realRanks: number[] = [];
+  for (const { key } of activeDomain) {
+    for (const p of shown) {
+      const r = seriesByPack.get(p.id)?.get(key);
+      if (typeof r === 'number') realRanks.push(r);
+    }
+  }
+  const minRank = realRanks.length ? Math.min(...realRanks) : 1;
+  const maxRank = realRanks.length ? Math.max(...realRanks) : 50;
+
+  // Does any plotted pack drop out of the top 500 somewhere in the window? Only gaps at or after a
+  // pack's first appearance count, so a brand-new release doesn't switch the red band on.
+  const hasOverflow = activeDomain.some((d, i) =>
+    shown.some((p) => {
+      const first = firstIdx.get(p.id) ?? -1;
+      return first >= 0 && i > first && seriesByPack.get(p.id)?.get(d.key) == null;
+    })
+  );
+  // Sit the sentinel just below the worst real rank so an occasional drop-out doesn't squash the
+  // real range of the well-performing packs.
+  const overLevel = Math.round(maxRank + Math.max(8, (maxRank - minRank) * 0.25));
+  const zoneTop = Math.round(maxRank + Math.max(4, (overLevel - maxRank) * 0.35));
+
+  const chartRows: Row[] = activeDomain.map(({ t, label, key }, i) => {
+    const row: Row = { t, label };
+    for (const p of shown) {
+      const r = seriesByPack.get(p.id)?.get(key);
+      if (typeof r === 'number') row[keyFor(p.id)] = r;
+      else if (i > (firstIdx.get(p.id) ?? -1) && (firstIdx.get(p.id) ?? -1) >= 0) row[keyFor(p.id)] = overLevel;
+      // else: before this pack's first appearance — leave unset so the line simply starts later.
+    }
+    return row;
+  });
+
+  const yDomain: [number, number] = [
+    Math.max(1, minRank - 2),
+    hasOverflow ? overLevel + Math.max(3, Math.round((overLevel - maxRank) * 0.3)) : maxRank + 2,
+  ];
+  const yTicks = hasOverflow ? [...axisTicks(minRank, maxRank), overLevel] : undefined;
+  const info = COUNTRY_MAP[active];
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+          <span className="text-2xl">{info?.flag ?? '🌏'}</span>
+          <div>
+            <p className="font-semibold text-sm text-gray-800 dark:text-gray-100">
+              {info?.name ?? active?.toUpperCase() ?? '—'}
+            </p>
+            {/* Count the lines actually drawn, not the server-side cap: `shown` changes with the
+                selected country and the Daily/Hourly window, so quoting `packs.length` would
+                over-claim (e.g. "top 8" while only 6 packs charted in this country). */}
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              {mode === 'daily' ? `Last ${DAYS} days` : `Last ${HOURLY_WINDOW_H}h · hourly`}
+              {rankedTotal > shown.length && ` · showing ${shown.length} of ${rankedTotal} ranked packs`}
+            </p>
+          </div>
+        </div>
+
+        {/* Country picker — in-memory filter, no extra DB reads */}
+        {available.length > 1 && (
+          <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+            {available.map((cc) => (
+              <button
+                key={cc}
+                onClick={() => setCountry(cc)}
+                aria-pressed={cc === active}
+                title={COUNTRY_MAP[cc]?.name ?? cc.toUpperCase()}
+                className={`px-2.5 py-1 transition-colors ${
+                  cc === active
+                    ? 'bg-green-500 text-white'
+                    : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+              >
+                {cc.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Daily / Hourly toggle */}
+        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+          <button
+            onClick={() => setFreq('daily')}
+            aria-pressed={mode === 'daily'}
+            className={`px-2.5 py-1 transition-colors ${
+              mode === 'daily'
+                ? 'bg-green-500 text-white'
+                : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            Daily
+          </button>
+          <button
+            onClick={() => setFreq('hourly')}
+            disabled={!hasHourly}
+            aria-pressed={mode === 'hourly'}
+            className={`px-2.5 py-1 transition-colors ${
+              mode === 'hourly'
+                ? 'bg-green-500 text-white'
+                : hasHourly
+                  ? 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  : 'bg-white dark:bg-gray-900 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+            }`}
+            title={!hasHourly ? 'No recent hourly data yet' : undefined}
+          >
+            Hourly
+          </button>
+        </div>
+      </div>
+
+      {/* Legend: which colour is which pack */}
+      {shown.length > 0 && (
+        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mb-2">
+          {shown.map((p) => (
+            <a
+              key={p.id}
+              href={`/sticker/${p.id}`}
+              title={p.name}
+              className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 max-w-[190px]"
+            >
+              <span
+                className="inline-block w-3 h-0.5 rounded flex-shrink-0"
+                style={{ backgroundColor: colorOf(p.id) }}
+              />
+              <span className="truncate">{p.name}</span>
+            </a>
+          ))}
+        </div>
+      )}
+
+      {hasOverflow && (
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">
+          A line dropping into the <span className="text-red-400 font-medium">Over&nbsp;#500</span> band means that
+          pack fell out of {info?.name ?? 'this country'}&apos;s top 500 (we only track the top 500).
+        </p>
+      )}
+
+      {shown.length === 0 || chartRows.length === 0 ? (
+        <div className="flex items-center justify-center h-44 text-sm text-gray-400 dark:text-gray-500">
+          {mode === 'hourly'
+            ? 'No hourly snapshots in the last 48h yet.'
+            : 'No ranking history for this country yet.'}
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={chartRows} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: chart.axis }} interval="preserveStartEnd" />
+            <YAxis
+              reversed
+              domain={yDomain}
+              ticks={yTicks}
+              tick={{ fontSize: 10, fill: chart.axis }}
+              tickFormatter={(v) => (hasOverflow && v === overLevel ? 'Over 500' : `#${v}`)}
+              width={hasOverflow ? 50 : 34}
+            />
+            <Tooltip
+              formatter={(value, name) => [
+                hasOverflow && value === overLevel ? 'Over #500' : `#${value}`,
+                String(name),
+              ]}
+              labelStyle={{ fontSize: 11, color: chart.tooltipText }}
+              itemStyle={{ color: chart.tooltipText }}
+              contentStyle={{
+                fontSize: 12,
+                borderRadius: 8,
+                backgroundColor: chart.tooltipBg,
+                border: `1px solid ${chart.tooltipBorder}`,
+                color: chart.tooltipText,
+              }}
+            />
+            {hasOverflow && (
+              <ReferenceArea
+                y1={zoneTop}
+                y2={yDomain[1]}
+                fill={isDark ? 'rgba(239,68,68,0.14)' : '#fef2f2'}
+                fillOpacity={0.7}
+                ifOverflow="extendDomain"
+                label={{ value: 'Over #500', fontSize: 10, fill: '#ef4444', position: 'insideBottomLeft' }}
+              />
+            )}
+            {shown.map((p) => (
+              <Line
+                key={p.id}
+                type="monotone"
+                dataKey={keyFor(p.id)}
+                name={p.name}
+                stroke={colorOf(p.id)}
+                strokeWidth={2}
+                connectNulls
+                dot={{ r: 2, strokeWidth: 0, fill: colorOf(p.id) }}
+                activeDot={{ r: 4.5 }}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}

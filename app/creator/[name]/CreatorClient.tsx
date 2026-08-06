@@ -4,13 +4,25 @@ import { useState } from 'react';
 import { useFavorites } from '@/hooks/useFavorites';
 import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
 import BackButton from '@/components/BackButton';
+import CreatorRankGraph, { CreatorGraphPack, CreatorGraphPoint } from '@/components/CreatorRankGraph';
 
 interface Props {
   author: string;
   products: ProductWithRankings[];
+  graphPacks: CreatorGraphPack[];
+  graphHistory: CreatorGraphPoint[];
+  graphDefaultCountry: string;
+  rankedTotal: number;
 }
 
-export default function CreatorClient({ author, products: initialProducts }: Props) {
+export default function CreatorClient({
+  author,
+  products: initialProducts,
+  graphPacks,
+  graphHistory,
+  graphDefaultCountry,
+  rankedTotal,
+}: Props) {
   const { isFavorite, toggle } = useFavorites();
   // The page itself is ISR-cached (cheap, but up to ~1h behind the hourly scrape). This lets
   // the team pull the live current rankings on demand. It ONLY fires on an explicit click, so
@@ -57,6 +69,21 @@ export default function CreatorClient({ author, products: initialProducts }: Pro
             {refreshing ? 'Loading…' : '↻ Refresh'}
           </button>
         </div>
+
+        {/* Ranking history for the creator's currently-ranked packs. Server-rendered from data
+            fetched once with the page; the Refresh button above only refreshes the table's live
+            ranks, so this chart intentionally does not re-fetch (7-day history barely moves). */}
+        {graphPacks.length > 0 && graphHistory.length > 0 && (
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 dark:ring-1 dark:ring-white/10 p-4 mb-6">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Ranking history</h2>
+            <CreatorRankGraph
+              packs={graphPacks}
+              history={graphHistory}
+              defaultCountry={graphDefaultCountry}
+              rankedTotal={rankedTotal}
+            />
+          </div>
+        )}
 
         <StickersRankTable
           products={products}

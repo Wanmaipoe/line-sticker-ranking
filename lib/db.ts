@@ -1,5 +1,5 @@
 import { createClient, type Client } from '@libsql/client';
-import { COUNTRY_ORDER } from './countries';
+import { COUNTRY_ORDER, FEATURED_COUNTRIES } from './countries';
 import { categoryOf } from './categories';
 import { characterOf } from './characters';
 
@@ -522,6 +522,75 @@ export async function getCharacterRankings(
     .sort((a, b) => (COUNTRY_ORDER[a.country] ?? 99) - (COUNTRY_ORDER[b.country] ?? 99));
 }
 
+// Short multi-pack history for the creator page's chart: every country, one read, PK-index-driven
+// (product_id is the PRIMARY KEY prefix, so each id is a seek — EXPLAIN: SEARCH rankings USING
+// INDEX sqlite_autoindex_rankings_1). Cost scales with the id count, so the CALLER must pass only
+// the handful of packs it will actually plot; MAX_HISTORY_PACKS is a hard backstop because this
+// runs on an ISR page that Google crawls across ~500 creators (measured: 8 packs x 7 days ≈
+// 1.6k-3.8k rows; all of a big creator's 47 ranked packs would be ~7.7k).
+export const MAX_HISTORY_PACKS = 8;
+// Rows newer than this keep full hourly resolution (the chart's Hourly view); everything older is
+// collapsed to one row per day before being sent to the client.
+const HISTORY_HOURLY_WINDOW_H = 48;
+
+export async function getCreatorRankHistory(
+  client: Client,
+  productIds: string[],
+  days = 7,
+  countries: string[] = [...FEATURED_COUNTRIES]
+) {
+  const ids = productIds.slice(0, MAX_HISTORY_PACKS);
+  if (!ids.length) return [];
+  const idPh = ids.map(() => '?').join(',');
+  const ccPh = countries.map(() => '?').join(',');
+  const result = await client.execute({
+    // `country IN (...)` is load-bearing, not cosmetic. The PK is (product_id, country,
+    // snapshot_date, snapshot_hour); with product_id alone constrained, `snapshot_date >=` is only
+    // a post-filter, so each seek walks EVERY row that pack has ever had (all history, growing
+    // forever) to return 7 days. Constraining country too makes both leading columns equalities, so
+    // the date range becomes an index range and each (pack, country) seek touches only the window.
+    // EXPLAIN must read: SEARCH rankings USING INDEX sqlite_autoindex_rankings_1
+    //   (product_id=? AND country=? AND snapshot_date>?)
+    sql: `SELECT product_id, country, snapshot_date, snapshot_hour, rank, created_at
+          FROM rankings
+          WHERE product_id IN (${idPh}) AND country IN (${ccPh})
+            AND snapshot_date >= date('now', ? || ' days')
+          ORDER BY product_id ASC, country ASC, snapshot_date ASC, snapshot_hour ASC`,
+    args: [...ids, ...countries, `-${days}`],
+  });
+
+  const rows = result.rows.map((row) => ({
+    product_id: row.product_id as string,
+    country: row.country as string,
+    snapshot_date: row.snapshot_date as string,
+    snapshot_hour: row.snapshot_hour as number,
+    snapshot_minute: minuteOf(row.created_at as string | null),
+    rank: row.rank as number,
+  }));
+
+  // Trim before this crosses the wire: the chart only ever draws hourly detail for the last 48h and
+  // best-per-day beyond that, so shipping ~7 days x 24 hourly points per (pack, country) would put
+  // most of a megabyte of unusable JSON in the page payload. Costs no extra reads (same result set).
+  const cutoff = Date.now() - HISTORY_HOURLY_WINDOW_H * 3_600_000;
+  const kept: typeof rows = [];
+  const bestOlderPerDay = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) {
+    const t = Date.parse(
+      `${r.snapshot_date}T${String(r.snapshot_hour).padStart(2, '0')}:${String(r.snapshot_minute).padStart(2, '0')}:00Z`
+    );
+    if (Number.isFinite(t) && t >= cutoff) {
+      kept.push(r);
+      continue;
+    }
+    const key = `${r.product_id}|${r.country}|${r.snapshot_date}`;
+    const cur = bestOlderPerDay.get(key);
+    if (!cur || r.rank < cur.rank) bestOlderPerDay.set(key, r);
+  }
+  return [...bestOlderPerDay.values(), ...kept];
+}
+
+export type CreatorRankHistoryPoint = Awaited<ReturnType<typeof getCreatorRankHistory>>[number];
+
 export async function getRankingHistory(client: Client, productId: string, country: string, days = 30) {
   const result = await client.execute({
     sql: `SELECT snapshot_date, snapshot_hour, rank
@@ -548,11 +617,18 @@ export async function getRankingHistoryAll(client: Client, productId: string, da
     // bucket. Selecting it costs no extra reads (same rows), and we ship only its MINUTE (a small
     // int) to the client so the chart can label points at the real capture time (e.g. 20:30, not
     // 20:00) without bloating the payload with full timestamps.
+    // `country IN (...)` is required for the date range to be an INDEX range rather than a
+    // post-filter: the PK is (product_id, country, snapshot_date, snapshot_hour), so with only
+    // product_id pinned each seek walks that product's entire retained history to return `days`.
+    // Constraining country makes both leading columns equalities. EXPLAIN must read:
+    //   SEARCH rankings USING INDEX sqlite_autoindex_rankings_1
+    //     (product_id=? AND country=? AND snapshot_date>?)
     sql: `SELECT country, snapshot_date, snapshot_hour, rank, created_at
           FROM rankings
-          WHERE product_id = ? AND snapshot_date >= date('now', ? || ' days')
+          WHERE product_id = ? AND country IN (${FEATURED_COUNTRIES.map(() => '?').join(',')})
+            AND snapshot_date >= date('now', ? || ' days')
           ORDER BY country ASC, snapshot_date ASC, snapshot_hour ASC`,
-    args: [productId, `-${days}`],
+    args: [productId, ...FEATURED_COUNTRIES, `-${days}`],
   });
   return result.rows.map((row) => ({
     country: row.country as string,

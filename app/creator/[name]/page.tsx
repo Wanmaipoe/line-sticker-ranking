@@ -1,4 +1,11 @@
-import { getDb, getProductsByAuthor, getProductsWithRankings } from '@/lib/db';
+import {
+  getDb,
+  getProductsByAuthor,
+  getProductsWithRankings,
+  getCreatorRankHistory,
+  MAX_HISTORY_PACKS,
+  type CreatorRankHistoryPoint,
+} from '@/lib/db';
 import CreatorClient from './CreatorClient';
 import JsonLd from '@/components/JsonLd';
 import { SITE_URL, SITE_NAME } from '@/lib/seo';
@@ -102,6 +109,42 @@ export default async function CreatorPage({ params }: Props) {
     rankings: rankings[p.id] ?? Object.fromEntries(FEATURED.map((cc) => [cc, null])),
   }));
 
+  // ── Ranking-history chart data ────────────────────────────────────────────
+  // Only packs ranked RIGHT NOW, best first, capped at MAX_HISTORY_PACKS: the cap bounds both the
+  // read cost (this is an ISR page crawled across ~500 creators) and the chart's readability — a
+  // creator like NishimuraYuji has 47 currently-ranked packs, which is 47 unreadable lines.
+  const rankedNow = withRankings
+    .map((p) => {
+      const ranks = FEATURED.map((cc) => p.rankings[cc]).filter((r): r is number => typeof r === 'number');
+      return { id: p.id, name: p.name, best: ranks.length ? Math.min(...ranks) : null };
+    })
+    .filter((p): p is { id: string; name: string; best: number } => p.best !== null)
+    .sort((a, b) => a.best - b.best);
+
+  const graphPacks = rankedNow.slice(0, MAX_HISTORY_PACKS).map(({ id, name }) => ({ id, name }));
+
+  // Default the chart to the country where the most of those packs are currently ranked, so the
+  // first render is the creator's strongest market rather than an arbitrary one.
+  const rankedIds = new Set(graphPacks.map((p) => p.id));
+  let defaultCountry = FEATURED[0];
+  let bestCount = -1;
+  for (const cc of FEATURED) {
+    const n = withRankings.filter((p) => rankedIds.has(p.id) && typeof p.rankings[cc] === 'number').length;
+    if (n > bestCount) {
+      bestCount = n;
+      defaultCountry = cc;
+    }
+  }
+
+  let history: CreatorRankHistoryPoint[] = [];
+  if (graphPacks.length) {
+    try {
+      history = await getCreatorRankHistory(client, graphPacks.map((p) => p.id), 7);
+    } catch {
+      // Chart is a nice-to-have: on a DB failure the page still renders the table.
+    }
+  }
+
   const creatorUrl = `${SITE_URL}/creator/${encodeURIComponent(author)}`;
   const jsonLd = products.length
     ? [
@@ -137,7 +180,14 @@ export default async function CreatorPage({ params }: Props) {
   return (
     <>
       {jsonLd && <JsonLd data={jsonLd} />}
-      <CreatorClient author={author} products={withRankings} />
+      <CreatorClient
+        author={author}
+        products={withRankings}
+        graphPacks={graphPacks}
+        graphHistory={history}
+        graphDefaultCountry={defaultCountry}
+        rankedTotal={rankedNow.length}
+      />
     </>
   );
 }

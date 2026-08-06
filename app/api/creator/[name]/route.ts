@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getProductsByAuthor, getProductsWithRankings } from '@/lib/db';
+import type { ProductWithRankings } from '@/components/StickersRankTable';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,11 +19,14 @@ export async function GET(
   const ids = products.map((p) => p.id);
   const rankings = await getProductsWithRankings(client, ids, FEATURED);
 
-  const withRankings = products.map((p) => ({
+  // Shape must stay assignable to ProductWithRankings — omitting sticker_type here made the
+  // Refresh button silently drop every ▶ Animated / ⤢ Popup badge from the table.
+  const withRankings: ProductWithRankings[] = products.map((p) => ({
     id: p.id,
     name: p.name,
     image_url: p.image_url,
     author: p.author,
+    sticker_type: p.sticker_type,
     rankings: rankings[p.id] ?? Object.fromEntries(FEATURED.map((cc) => [cc, null])),
   }));
 
