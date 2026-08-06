@@ -65,6 +65,28 @@ function Bars({ items, max = 6, minRows }: { items: Share[]; max?: number; minRo
   );
 }
 
+/**
+ * A section heading that explains its own maths on hover. Pure CSS (group-hover) rather than React
+ * state, so this page stays fully server-rendered and ships no JavaScript for it. The popover goes
+ * LIGHTER in dark mode — a dark tooltip on a dark card is invisible.
+ */
+function SectionTitle({ children, help }: { children: React.ReactNode; help: string }) {
+  return (
+    <h3 className="group relative inline-flex items-start gap-1 text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2 cursor-help">
+      <span className="border-b border-dotted border-gray-300 dark:border-gray-600">{children}</span>
+      <span aria-hidden className="text-gray-300 dark:text-gray-600 text-[10px] leading-4">
+        ⓘ
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-60 rounded-lg p-2.5 text-[11px] font-normal leading-snug opacity-0 shadow-lg transition-opacity group-hover:opacity-100 bg-gray-800 text-white dark:bg-gray-100 dark:text-gray-900"
+      >
+        {help}
+      </span>
+    </h3>
+  );
+}
+
 function Stat({ value, label, hint }: { value: string; label: string; hint?: string }) {
   return (
     // Uniform height: some labels wrap to two lines ("held by top 10 creators") and some don't,
@@ -162,7 +184,7 @@ function AllMarkets({ o }: { o: OverallInsight }) {
           Market reach is unique to this column, so it goes below them rather than shunting them
           down and breaking the alignment. */}
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Format mix</h3>
+        <SectionTitle help="Share of this column’s packs by sticker format. The format comes free from the type icon LINE shows on each pack in the ranking list — no icon means a plain static pack.">Format mix</SectionTitle>
         <Bars items={o.formats} max={4} minRows={4} />
         {/* Mirrors the per-country caption below the same chart, both to say something useful and
             to keep this column's following sections level with theirs. */}
@@ -172,12 +194,12 @@ function AllMarkets({ o }: { o: OverallInsight }) {
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Character mix</h3>
+        <SectionTitle help="Share of packs by their main character. Labels come from a vision model reading each pack’s thumbnail once, and admins can correct any it gets wrong. Packs not yet labelled are left out of the percentages.">Character mix</SectionTitle>
         <Bars items={o.characters} max={6} minRows={6} />
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Price points</h3>
+        <SectionTitle help="The most common prices, as a share of packs whose price we know (shown underneath). Uses LINE’s canonical USD tier rather than local currency, so the three markets stay comparable.">Price points</SectionTitle>
         <div className="flex flex-wrap gap-1.5">
           {o.prices.map((p, i) => (
             <span
@@ -198,7 +220,7 @@ function AllMarkets({ o }: { o: OverallInsight }) {
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Market reach</h3>
+        <SectionTitle help="Of every distinct pack charting anywhere, how many appear in exactly 1, 2 or 3 markets. A pack charting in both Japan and Thailand is counted once, with a reach of 2 — never twice.">Market reach</SectionTitle>
         <div className="space-y-1.5">
           {o.reach.map((r, i) => (
             <div key={r.markets} className="flex items-center gap-2">
@@ -224,9 +246,7 @@ function AllMarkets({ o }: { o: OverallInsight }) {
 
       {o.characterTravel.length > 0 && (
         <section>
-          <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
-            Characters that travel
-          </h3>
+          <SectionTitle help="For each character with at least 15 packs charting, the share of those packs that appear in 2 or more markets. The 15-pack floor stops a character with 2 packs showing a meaningless 50%.">Characters that travel</SectionTitle>
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-2">
             Share charting in 2+ markets
           </p>
@@ -246,9 +266,7 @@ function AllMarkets({ o }: { o: OverallInsight }) {
 
       {o.travelers.length > 0 && (
         <section>
-          <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">
-            Charting in all {o.reach.length}
-          </h3>
+          <SectionTitle help="Packs currently sitting in the top 500 of every market at the same time, ordered by their best rank across those markets.">Charting in all {o.reach.length}</SectionTitle>
           <ol className="space-y-1">
             {o.travelers.slice(0, 5).map((t, i) => (
               <li key={t.id} className="flex items-center gap-2 text-xs">
@@ -307,7 +325,7 @@ function CountryColumn({ c }: { c: CountryInsight }) {
       </div>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Format mix</h3>
+        <SectionTitle help="Share of this column’s packs by sticker format. The format comes free from the type icon LINE shows on each pack in the ranking list — no icon means a plain static pack.">Format mix</SectionTitle>
         <Bars items={c.formats} max={4} minRows={4} />
         <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
           Animated is <b className="text-gray-600 dark:text-gray-300">{c.animatedTop50Pct}%</b> of the top 50 vs{' '}
@@ -324,12 +342,12 @@ function CountryColumn({ c }: { c: CountryInsight }) {
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Character mix</h3>
+        <SectionTitle help="Share of packs by their main character. Labels come from a vision model reading each pack’s thumbnail once, and admins can correct any it gets wrong. Packs not yet labelled are left out of the percentages.">Character mix</SectionTitle>
         <Bars items={c.characters} max={6} minRows={6} />
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Price points</h3>
+        <SectionTitle help="The most common prices, as a share of packs whose price we know (shown underneath). Uses LINE’s canonical USD tier rather than local currency, so the three markets stay comparable.">Price points</SectionTitle>
         {c.prices.length ? (
           <>
             <div className="flex flex-wrap gap-1.5">
@@ -356,7 +374,7 @@ function CountryColumn({ c }: { c: CountryInsight }) {
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Biggest creators</h3>
+        <SectionTitle help="How many of this market’s current top 500 packs belong to each creator. So nagano showing 15 means 15 of Japan’s 500 slots right now are nagano packs — it counts chart slots held today, not lifetime releases or sales. The name is the pack’s author on LINE Store.">Biggest creators</SectionTitle>
         <ol className="space-y-1">
           {c.topCreators.map((t, i) => (
             <li key={t.author} className="flex items-center gap-2 text-xs">
@@ -374,9 +392,7 @@ function CountryColumn({ c }: { c: CountryInsight }) {
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">
-          #1 over the last 7 days
-        </h3>
+        <SectionTitle help="For each of the last 7 days we take the final snapshot captured that day and read whichever pack was sitting at rank 1. Days where the scraper missed a run are skipped.">#1 over the last 7 days</SectionTitle>
         {c.topSpot.length ? (
           <>
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">
@@ -403,7 +419,7 @@ function CountryColumn({ c }: { c: CountryInsight }) {
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Sequels</h3>
+        <SectionTitle help="Share of charting titles that look like a numbered instalment — the title contains vol, part, a V.2-style marker, or a standalone number from 2 to 19. It is a rough text match, so a title with a year in it can be caught.">Sequels</SectionTitle>
         <p className="text-xs text-gray-600 dark:text-gray-300">
           <b className="text-gray-800 dark:text-gray-100">{c.sequelPct}%</b> of charting titles look like a
           numbered instalment
