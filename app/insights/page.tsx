@@ -506,7 +506,7 @@ export default async function InsightsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-6">
               <AnalysisCard
                 title="📈 What's rising"
-                blurb="The chart is what has accumulated. These are the packs that entered in the last 7 days — what is working right now. Edge = share among new entrants minus share of the whole chart."
+                blurb="Which characters are gaining ground right now. The chart itself took months to build up, so it mostly reflects what was already popular — this looks only at packs that broke into the top 500 in the last 7 days. First number is the character's share of the whole chart, second is its share of just this week's arrivals: 4% → 6% means it is arriving faster than it currently holds. The line above each list is how many packs entered, and how many of those were animated."
                 countries={data.countries}
                 render={(c) =>
                   c.entrants ? (
@@ -534,7 +534,7 @@ export default async function InsightsPage() {
 
               <AnalysisCard
                 title="🏔️ Which characters actually climb"
-                blurb="Share of the top 50 vs share of the whole top 500. A positive edge means the character doesn't just appear often — it reaches the top. Share alone can't tell you that."
+                blurb="Common is not the same as successful. Some characters fill the chart but sit in its lower half; others are rarer and cluster near the very top. First number is the character's share of the whole top 500, second is its share of just the top 50: 7% → 12% means it is punching above its weight where it counts. The mix bars above tell you what is everywhere, this tells you what actually wins."
                 countries={data.countries}
                 render={(c) => (
                   <ul className="space-y-1">
@@ -553,7 +553,7 @@ export default async function InsightsPage() {
 
               <AnalysisCard
                 title="💰 Price vs rank"
-                blurb="Median chart position at each price point. If the cheapest tier doesn't rank better, price isn't what's holding a pack back."
+                blurb="Whether being cheap actually helps a pack rank. For each price tier we take every charting pack sold at that price and read off the middle one's position — half rank better, half rank worse. Shorter bar and lower number are better; the faint figure on the right is how many packs sit in that tier. If the cheapest tier is not clearly ahead, price is not what is holding a pack back."
                 countries={data.countries}
                 render={(c) => (
                   <ul className="space-y-1">
@@ -583,7 +583,7 @@ export default async function InsightsPage() {
 
               <AnalysisCard
                 title="🔢 Do sequels pay?"
-                blurb="Median rank of numbered instalments (vol. 2, V.3) against everything else. Tests whether extending a proven character actually beats launching something new."
+                blurb="Whether extending a pack that worked beats launching something new. Titles that read as a numbered instalment (Vol. 2, V.3, Part 4) are compared against everything else, using the middle rank of each group — lower is better. Sequels only exist because the original sold, so they start with a built-in advantage: if they still do not rank better, the familiar name is not carrying them."
                 countries={data.countries}
                 render={(c) => {
                   const s = c.sequels;
