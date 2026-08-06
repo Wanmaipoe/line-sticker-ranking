@@ -246,9 +246,9 @@ function AllMarkets({ o }: { o: OverallInsight }) {
 
       {o.characterTravel.length > 0 && (
         <section>
-          <SectionTitle help="For each character with at least 15 packs charting, the share of those packs that appear in 2 or more markets. The 15-pack floor stops a character with 2 packs showing a meaningless 50%.">Characters that travel</SectionTitle>
+          <SectionTitle help="How often a character crosses borders. Most packs chart in only one country — this is the share of that character’s packs that chart in two or three countries instead. A high number means the idea travels well; a low one means it tends to stay a local hit. Characters with fewer than 15 packs are left out, because with only a handful of packs a single crossover swings the percentage wildly.">Characters that travel</SectionTitle>
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-2">
-            Share charting in 2+ markets
+            % of each character&apos;s packs charting in more than one country
           </p>
           <div className="flex flex-wrap gap-1.5">
             {o.characterTravel.slice(0, 5).map((t) => (
