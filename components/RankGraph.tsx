@@ -297,6 +297,10 @@ export default function RankGraph({ allData, selectedCountry, viewMode, onViewMo
               width={hasOverflow ? 50 : 34}
             />
             <Tooltip
+              // Best rank first (recharts defaults to sorting by name, i.e. alphabetical country
+              // order). The "Over #500" sentinel is a large number, so a country the sticker has
+              // dropped out of sinks to the bottom.
+              itemSorter="value"
               formatter={(value, name) => [
                 hasOverflow && value === overLevel ? 'Over #500' : `#${value}`,
                 COUNTRY_MAP[name as string]?.name ?? String(name),

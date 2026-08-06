@@ -337,6 +337,11 @@ export default function CreatorRankGraph({
               width={hasOverflow ? 50 : 34}
             />
             <Tooltip
+              // Best rank first. recharts defaults itemSorter to 'name', which listed the packs
+              // alphabetically; sorting on the value orders them the way the chart reads (rank
+              // ascending), and the "Over #500" sentinel is a large number so drop-outs sink to
+              // the bottom where they belong.
+              itemSorter="value"
               formatter={(value, name) => [
                 hasOverflow && value === overLevel ? 'Over #500' : `#${value}`,
                 String(name),
