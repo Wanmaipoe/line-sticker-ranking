@@ -2,6 +2,7 @@ import { createClient, type Client } from '@libsql/client';
 import { COUNTRY_ORDER, FEATURED_COUNTRIES } from './countries';
 import { categoryOf } from './categories';
 import { characterOf, CHARACTER_MAP } from './characters';
+import { UNRANKED_RANK } from './ranking';
 
 let _client: Client | null = null;
 
@@ -597,16 +598,9 @@ export async function getCreatorRankHistory(
 
 export type CreatorRankHistoryPoint = Awaited<ReturnType<typeof getCreatorRankHistory>>[number];
 
-/**
- * Rank a pack is treated as holding in a market where it is NOT charting.
- *
- * The chart is 500 deep, so "off the chart" means "501st or worse" — we cannot know which. Scoring
- * a missing market as 500 is the most generous reading of the unknown, and it has to be SOME
- * number: skipping it and averaging only the markets a pack does chart in would rank a pack that
- * is #1 in Thailand and absent everywhere else above one that is #3 in all three, which is the
- * opposite of what a cross-market ranking should say.
- */
-export const UNRANKED_RANK = 500;
+// Defined in lib/ranking.ts (a client component needs it, and importing from here would pull
+// @libsql/client into the browser bundle); re-exported so server callers can keep using db.ts.
+export { UNRANKED_RANK } from './ranking';
 
 export interface GlobalRankedPack {
   id: string;
