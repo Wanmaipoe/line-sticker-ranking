@@ -129,11 +129,12 @@ export default async function CreatorPage({ params }: Props) {
   // One history fetch covers the union, so switching country in the chart costs no extra reads.
   const unionIds = [...new Set(Object.values(packsByCountry).flatMap((ps) => ps.map((p) => p.id)))];
 
-  // Open on the market where this creator has the most packs charting.
-  let defaultCountry: string = FEATURED[0];
-  for (const cc of FEATURED) {
-    if ((rankedByCountry[cc] ?? 0) > (rankedByCountry[defaultCountry] ?? 0)) defaultCountry = cc;
-  }
+  // Always open on Japan (FEATURED_COUNTRIES[0], the primary market) so the chart is consistent
+  // from creator to creator. Previously this opened on whichever market the creator had the most
+  // packs in, which meant the same page could greet you with a different country each visit.
+  // CreatorRankGraph falls back to the first market that actually has packs when a creator has
+  // nothing charting in Japan, so this never renders an empty chart.
+  const defaultCountry: string = FEATURED[0];
 
   let history: CreatorRankHistoryPoint[] = [];
   if (unionIds.length) {
