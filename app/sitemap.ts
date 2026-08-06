@@ -7,7 +7,12 @@ import { SITE_URL } from '@/lib/seo';
 // hour to hour, so daily is plenty and saves a full ~17k-row read every hour.
 export const revalidate = 86400;
 
-const FEATURED = ['jp', 'th', 'tw', 'id', 'us'];
+import { FEATURED_COUNTRIES } from '@/lib/countries';
+
+// Imported, never re-declared: a local copy here would keep advertising /country/<cc> for a
+// retired market whose page now 404s — exactly the "Submitted URL not found" pattern that wastes
+// the crawl budget which already caused one read-quota outage.
+const FEATURED = FEATURED_COUNTRIES;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const client = getDb();

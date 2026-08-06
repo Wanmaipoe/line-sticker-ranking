@@ -103,7 +103,7 @@ export async function getProductsByAuthor(client: Client, author: string, limit 
 export async function getProductsWithRankings(
   client: Client,
   productIds: string[],
-  countries: string[]
+  countries: readonly string[]
 ): Promise<Record<string, Record<string, number | null>>> {
   if (!productIds.length) return {};
 
@@ -528,7 +528,13 @@ export async function getCharacterRankings(
 // the handful of packs it will actually plot; MAX_HISTORY_PACKS is a hard backstop because this
 // runs on an ISR page that Google crawls across ~500 creators (measured: 8 packs x 7 days ≈
 // 1.6k-3.8k rows; all of a big creator's 47 ranked packs would be ~7.7k).
-export const MAX_HISTORY_PACKS = 8;
+// Packs plotted per country on the creator chart. The chart selects the top N *per country*, so
+// the history fetch covers the UNION across markets — hence the larger backstop below.
+export const TOP_PACKS_PER_COUNTRY = 7;
+// Hard cap on the union (3 markets x 7 = 21). Measured 2026-08-06 on real creators: the union is
+// 8-14 packs and costs 1.2k-2.8k rows for 7 days — cheaper than the previous global top-8 across
+// 5 countries, because two markets were retired.
+export const MAX_HISTORY_PACKS = TOP_PACKS_PER_COUNTRY * FEATURED_COUNTRIES.length;
 // Rows newer than this keep full hourly resolution (the chart's Hourly view); everything older is
 // collapsed to one row per day before being sent to the client.
 const HISTORY_HOURLY_WINDOW_H = 48;
@@ -537,7 +543,7 @@ export async function getCreatorRankHistory(
   client: Client,
   productIds: string[],
   days = 7,
-  countries: string[] = [...FEATURED_COUNTRIES]
+  countries: readonly string[] = FEATURED_COUNTRIES
 ) {
   const ids = productIds.slice(0, MAX_HISTORY_PACKS);
   if (!ids.length) return [];

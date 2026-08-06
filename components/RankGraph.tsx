@@ -12,7 +12,7 @@ import {
   ReferenceLine,
   ReferenceArea,
 } from 'recharts';
-import { COUNTRY_MAP } from '@/lib/countries';
+import { COUNTRY_MAP, FEATURED_COUNTRIES } from '@/lib/countries';
 import { useChartColors, useTheme } from '@/lib/theme';
 
 interface DataPoint {
@@ -35,7 +35,8 @@ interface Props {
   onViewModeChange: (m: 'all' | 'each') => void;
 }
 
-const FEATURED = ['jp', 'th', 'tw', 'id', 'us'] as const;
+const FEATURED = FEATURED_COUNTRIES;
+// id/us keep their hues so any retained history that surfaces still renders in a stable colour.
 const COLORS: Record<string, string> = {
   jp: '#ef4444', th: '#06c755', tw: '#3b82f6', id: '#f59e0b', us: '#8b5cf6',
 };

@@ -1,12 +1,13 @@
 import type { Client } from '@libsql/client';
-import { COUNTRY_MAP } from '@/lib/countries';
+import { COUNTRY_MAP, FEATURED_COUNTRIES } from '@/lib/countries';
 
 // Shared homepage data queries, used by BOTH the server-rendered homepage (app/page.tsx, so AI
 // crawlers and no-JS clients see real rankings in the initial HTML) and the /api/dashboard +
 // /api/trending route handlers. Keeping ONE implementation means one set of index-driven queries,
 // and the homepage's ISR cache + the route caches don't drift.
 
-const FEATURED_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'] as const;
+// (imported from lib/countries — see the import above; a local copy here kept the dashboard and
+// Movers querying retired markets, rendering their final frozen snapshot as if it were live)
 
 // Days of rank history for each Top-5 sticker's homepage sparkline. Short + folded into the caches
 // so reads stay bounded: history is a PK-indexed per-product seek (product_id is the rankings

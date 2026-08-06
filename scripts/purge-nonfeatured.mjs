@@ -1,7 +1,13 @@
-// One-time cleanup: remove ranking rows for countries we no longer track.
-// We only keep LINE's meaningful markets (JP, TH, TW, ID, US); other countries
-// had too few users to rank meaningfully. Idempotent — safe to re-run.
-// Usage: node scripts/purge-nonfeatured.mjs
+// One-time cleanup: remove ranking rows for countries that were NEVER part of the product.
+// Idempotent — safe to re-run. Usage: node scripts/purge-nonfeatured.mjs
+//
+// ⚠ DO NOT "tidy" the KEEP list below to match lib/countries.ts FEATURED_COUNTRIES.
+// Indonesia and the US were retired from SCRAPING on 2026-08-06, but their history is
+// deliberately RETAINED. This script does `DELETE FROM rankings WHERE country NOT IN (KEEP)`, so
+// dropping id/us from this array would erase millions of historical rows in one burst — and on
+// this database every deleted row is metered across 3 B-trees, which would also spike the
+// write quota. The list here is a RETENTION policy and is intentionally broader than the
+// scraping policy.
 import { createClient } from '@libsql/client';
 import { readFileSync } from 'fs';
 
@@ -12,7 +18,9 @@ for (const line of env.split('\n')) {
 }
 
 const client = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
-const FEATURED = ['jp', 'th', 'tw', 'id', 'us'];
+// RETENTION list (see the warning at the top) — NOT the scraping list. Keep id/us here.
+const KEEP_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'];
+const FEATURED = KEEP_COUNTRIES;
 const ph = FEATURED.map(() => '?').join(',');
 
 const before = (await client.execute('SELECT COUNT(*) n FROM rankings')).rows[0].n;

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getProductsByAuthor, getProductsWithRankings } from '@/lib/db';
 import type { ProductWithRankings } from '@/components/StickersRankTable';
+import { FEATURED_COUNTRIES } from '@/lib/countries';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const FEATURED = ['jp', 'th', 'tw', 'id', 'us'];
+const FEATURED = FEATURED_COUNTRIES;
 
 export async function GET(
   _req: NextRequest,

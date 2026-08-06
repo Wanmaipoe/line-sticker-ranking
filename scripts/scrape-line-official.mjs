@@ -37,11 +37,19 @@ try {
 const BASE = 'https://store.line.me';
 // LINE's meaningful markets only (by MAU). Other countries have too few users to
 // produce a trustworthy ranking, so we don't collect them. Order = priority.
-const ALL_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'];
-// ONLY=th,jp limits the run (testing / re-scrape a single country). Default: all.
+// Must mirror FEATURED_COUNTRIES in lib/countries.ts (this is a plain .mjs run by bare node, so
+// it cannot import the TS module — the duplication is structural). Indonesia and the US were
+// retired 2026-08-06: 2 of 5 countries = 40% of all ranking writes for markets nobody looked at.
+const ALL_COUNTRIES = ['jp', 'th', 'tw'];
+// ONLY=th,jp limits the run (testing / re-scrape a single country). Intersected with the
+// allowlist, not substituted for it, so ONLY=id,us can never resurrect a retired market.
 const COUNTRIES = process.env.ONLY
-  ? process.env.ONLY.split(',').map((c) => c.trim().toLowerCase()).filter(Boolean)
+  ? process.env.ONLY.split(',').map((c) => c.trim().toLowerCase()).filter((c) => ALL_COUNTRIES.includes(c))
   : ALL_COUNTRIES;
+if (process.env.ONLY && COUNTRIES.length === 0) {
+  console.error(`✗ ONLY=${process.env.ONLY} matched no allowed country (${ALL_COUNTRIES.join(', ')})`);
+  process.exit(1);
+}
 const MAX_RANK = parseInt(process.env.MAX_RANK ?? '500', 10);
 
 const HEADERS = {

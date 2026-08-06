@@ -29,15 +29,17 @@ export interface CreatorGraphPack {
 }
 
 interface Props {
-  // The packs to plot, already capped + ordered by the server (best current rank first).
-  packs: CreatorGraphPack[];
-  // Multi-country history for exactly those packs, fetched once server-side. Switching country
-  // filters this in memory, so it costs zero extra DB reads (same trick as the sticker page).
+  // Top packs PER COUNTRY (server-capped, best current rank first in each market). Chosen per
+  // country because a single global top-N is dominated by the creator's strongest market and
+  // starves the others.
+  packsByCountry: Record<string, CreatorGraphPack[]>;
+  // History for the UNION of those packs, fetched once server-side. Switching country filters this
+  // in memory, so it costs zero extra DB reads (same trick as the sticker page).
   history: CreatorGraphPoint[];
   // Country the creator has the most currently-ranked packs in.
   defaultCountry: string;
-  // How many of the creator's ranked packs are plotted vs exist, for the "showing N of M" note.
-  rankedTotal: number;
+  // Packs ranked in each country, for the "showing N of M" note.
+  rankedByCountry: Record<string, number>;
 }
 
 // One colour per plotted pack. Distinct hues that hold up on both light and dark surfaces; the
@@ -76,18 +78,26 @@ function axisTicks(lo: number, hi: number): number[] {
 
 type Row = { t: number; label: string } & Record<string, number | string>;
 
-export default function CreatorRankGraph({ packs, history, defaultCountry, rankedTotal }: Props) {
+export default function CreatorRankGraph({
+  packsByCountry,
+  history,
+  defaultCountry,
+  rankedByCountry,
+}: Props) {
   const [country, setCountry] = useState(defaultCountry);
   const [freq, setFreq] = useState<'daily' | 'hourly'>('daily');
   const chart = useChartColors();
   const isDark = useTheme() === 'dark';
 
-  // Countries this creator charts in, in the site's standard JP > TH > TW > ID > US order so the
-  // strip is stable across creators and matches the rank table's column order.
-  const present = new Set(history.map((d) => d.country));
-  const available = [...present].sort((a, b) => (COUNTRY_ORDER[a] ?? 99) - (COUNTRY_ORDER[b] ?? 99));
+  // Countries this creator charts in, in the site's standard JP > TH > TW order so the strip is
+  // stable across creators and matches the rank table's column order. Driven by which markets have
+  // packs to plot (not by raw history rows), so a market whose packs all dropped out isn't offered.
+  const available = Object.keys(packsByCountry)
+    .filter((cc) => (packsByCountry[cc]?.length ?? 0) > 0)
+    .sort((a, b) => (COUNTRY_ORDER[a] ?? 99) - (COUNTRY_ORDER[b] ?? 99));
   // Guard against a stale/absent selection without needing an effect.
   const active = available.includes(country) ? country : available[0];
+  const packs = (active && packsByCountry[active]) || [];
 
   const uniqueDates = new Set(history.map((d) => d.snapshot_date)).size;
   const uniqueSlots = new Set(history.map((d) => `${d.snapshot_date}-${d.snapshot_hour}`)).size;
@@ -222,7 +232,8 @@ export default function CreatorRankGraph({ packs, history, defaultCountry, ranke
                 over-claim (e.g. "top 8" while only 6 packs charted in this country). */}
             <p className="text-xs text-gray-400 dark:text-gray-500">
               {mode === 'daily' ? `Last ${DAYS} days` : `Last ${HOURLY_WINDOW_H}h · hourly`}
-              {rankedTotal > shown.length && ` · showing ${shown.length} of ${rankedTotal} ranked packs`}
+              {(rankedByCountry[active] ?? 0) > shown.length &&
+                ` · showing ${shown.length} of ${rankedByCountry[active]} ranked packs`}
             </p>
           </div>
         </div>

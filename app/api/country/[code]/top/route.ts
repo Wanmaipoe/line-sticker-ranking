@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { COUNTRY_MAP } from '@/lib/countries';
+import { COUNTRY_MAP, isFeaturedCountry } from '@/lib/countries';
 
 export const runtime = 'nodejs';
 export const revalidate = 300;
@@ -11,6 +11,12 @@ export async function GET(
 ) {
   const { code } = await params;
   const cc = code.toLowerCase();
+  // Mirror the HTML route's guard. Without it this happily queried ANY string, so a retired market
+  // kept serving its final frozen snapshot forever (the query takes MAX(snapshot_date), not a
+  // recent date), and arbitrary junk codes reached the database.
+  if (!isFeaturedCountry(cc)) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '50', 10), 100);
   const client = getDb();
 

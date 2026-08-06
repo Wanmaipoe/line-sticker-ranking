@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
-import { COUNTRY_MAP } from '@/lib/countries';
+import { COUNTRY_MAP, FEATURED_COUNTRIES } from '@/lib/countries';
 
 // Freshness watchdog: the site's whole value is hourly data, so if the newest snapshot is older
 // than STALE_HOURS the scraper pipeline is down (old computer off, GitHub Action throttled/failed)
@@ -15,7 +15,9 @@ export const maxDuration = 30;
 const STALE_HOURS = 2; // hourly cadence → >2h means at least one full missed cycle
 const REALERT_HOURS = 6; // during an ongoing outage, remind at most every 6h
 
-const COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'] as const;
+// Imported: a retired market never advances again, so a local copy would put a permanently-red
+// row in every genuine outage email and train the reader to ignore it.
+const COUNTRIES = FEATURED_COUNTRIES;
 
 function authorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;

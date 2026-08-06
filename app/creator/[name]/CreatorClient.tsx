@@ -9,19 +9,19 @@ import CreatorRankGraph, { CreatorGraphPack, CreatorGraphPoint } from '@/compone
 interface Props {
   author: string;
   products: ProductWithRankings[];
-  graphPacks: CreatorGraphPack[];
+  graphPacksByCountry: Record<string, CreatorGraphPack[]>;
   graphHistory: CreatorGraphPoint[];
   graphDefaultCountry: string;
-  rankedTotal: number;
+  rankedByCountry: Record<string, number>;
 }
 
 export default function CreatorClient({
   author,
   products: initialProducts,
-  graphPacks,
+  graphPacksByCountry,
   graphHistory,
   graphDefaultCountry,
-  rankedTotal,
+  rankedByCountry,
 }: Props) {
   const { isFavorite, toggle } = useFavorites();
   // The page itself is ISR-cached (cheap, but up to ~1h behind the hourly scrape). This lets
@@ -73,14 +73,14 @@ export default function CreatorClient({
         {/* Ranking history for the creator's currently-ranked packs. Server-rendered from data
             fetched once with the page; the Refresh button above only refreshes the table's live
             ranks, so this chart intentionally does not re-fetch (7-day history barely moves). */}
-        {graphPacks.length > 0 && graphHistory.length > 0 && (
+        {graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0) && (
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 dark:ring-1 dark:ring-white/10 p-4 mb-6">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Ranking history</h2>
             <CreatorRankGraph
-              packs={graphPacks}
+              packsByCountry={graphPacksByCountry}
               history={graphHistory}
               defaultCountry={graphDefaultCountry}
-              rankedTotal={rankedTotal}
+              rankedByCountry={rankedByCountry}
             />
           </div>
         )}

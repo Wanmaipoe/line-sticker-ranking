@@ -26,11 +26,17 @@ export const COUNTRY_MAP = Object.fromEntries(
   COUNTRIES.map((c) => [c.code, c])
 ) as Record<string, typeof COUNTRIES[number]>;
 
-// The only markets we track and display, in priority order (by LINE MAU:
-// Japan ~96M, Thailand ~54M, Taiwan ~23M, Indonesia ~20M, US ~3M). Everything
-// country-related — scraping, tables, leaderboard, footprint — uses this list and
-// this order. Other countries have too few LINE users to rank meaningfully.
-export const FEATURED_COUNTRIES = ['jp', 'th', 'tw', 'id', 'us'] as const;
+// The only markets we track and display, in priority order (by LINE MAU: Japan ~96M,
+// Thailand ~54M, Taiwan ~23M). Everything country-related — scraping, tables, leaderboard,
+// footprint — uses this list and this order. Other countries have too few LINE users to rank
+// meaningfully. THIS IS THE SINGLE SOURCE OF TRUTH: import it, never re-declare the literal
+// (it used to be copy-pasted into 9 files, so changing markets meant a 9-file hunt).
+//
+// Indonesia and the US were retired 2026-08-06: too thin to be useful, and dropping them cuts
+// scraper writes 40%. NOTE: their historical rows are deliberately KEPT in the database — do NOT
+// add id/us to scripts/purge-nonfeatured.mjs's keep-list, which would DELETE that history.
+// COUNTRIES (above) still lists all 18 codes so retained id/us rows keep a readable name + flag.
+export const FEATURED_COUNTRIES = ['jp', 'th', 'tw'] as const;
 
 export const COUNTRY_ORDER: Record<string, number> = Object.fromEntries(
   FEATURED_COUNTRIES.map((c, i) => [c, i])

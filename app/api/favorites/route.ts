@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getProductsWithRankings } from '@/lib/db';
+import { FEATURED_COUNTRIES } from '@/lib/countries';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const FEATURED = ['jp', 'th', 'tw', 'id', 'us'];
+const FEATURED = FEATURED_COUNTRIES;
 
 export async function GET(req: NextRequest) {
   const idsParam = req.nextUrl.searchParams.get('ids') ?? '';

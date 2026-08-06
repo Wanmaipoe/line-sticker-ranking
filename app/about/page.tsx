@@ -69,10 +69,9 @@ export default function AboutPage() {
         <div className="mt-8 space-y-6 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
           <QA q="What data do you track?">
             <p>
-              The top 500 creator stickers per country (Japan, Thailand and Taiwan on the homepage;
-              Indonesia and the United States are also collected), each sticker&apos;s rank over the
-              last 30 days, the biggest hourly movers, and a leaderboard of the creators with the
-              most stickers in the charts.
+              The top 500 creator stickers per country (Japan, Thailand and Taiwan), each
+              sticker&apos;s rank over the last 30 days, the biggest hourly movers, and a
+              leaderboard of the creators with the most stickers in the charts.
             </p>
           </QA>
           <QA q="Where does the ranking data come from?">

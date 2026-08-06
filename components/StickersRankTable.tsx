@@ -4,11 +4,13 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { COUNTRY_MAP } from '@/lib/countries';
+import { COUNTRY_MAP, FEATURED_COUNTRIES } from '@/lib/countries';
 import TypeBadge from '@/components/TypeBadge';
 
-const FEATURED = ['jp', 'th', 'tw', 'id', 'us'] as const;
-const MOBILE_HIDDEN = new Set(['id', 'us']);
+const FEATURED = FEATURED_COUNTRIES;
+// Was new Set(['id','us']) to drop the two thinnest columns on small screens. Those markets are
+// retired, and the remaining three all fit, so nothing is hidden now.
+const MOBILE_HIDDEN = new Set<string>();
 
 export interface ProductWithRankings {
   id: string;

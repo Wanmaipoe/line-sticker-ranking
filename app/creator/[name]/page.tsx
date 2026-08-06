@@ -3,9 +3,10 @@ import {
   getProductsByAuthor,
   getProductsWithRankings,
   getCreatorRankHistory,
-  MAX_HISTORY_PACKS,
+  TOP_PACKS_PER_COUNTRY,
   type CreatorRankHistoryPoint,
 } from '@/lib/db';
+import { FEATURED_COUNTRIES } from '@/lib/countries';
 import CreatorClient from './CreatorClient';
 import JsonLd from '@/components/JsonLd';
 import { SITE_URL, SITE_NAME } from '@/lib/seo';
@@ -34,7 +35,7 @@ function safeDecode(s: string): string | null {
   }
 }
 
-const FEATURED = ['jp', 'th', 'tw', 'id', 'us'];
+const FEATURED = FEATURED_COUNTRIES;
 
 interface Props {
   params: Promise<{ name: string }>;
@@ -110,36 +111,34 @@ export default async function CreatorPage({ params }: Props) {
   }));
 
   // ── Ranking-history chart data ────────────────────────────────────────────
-  // Only packs ranked RIGHT NOW, best first, capped at MAX_HISTORY_PACKS: the cap bounds both the
-  // read cost (this is an ISR page crawled across ~500 creators) and the chart's readability — a
-  // creator like NishimuraYuji has 47 currently-ranked packs, which is 47 unreadable lines.
-  const rankedNow = withRankings
-    .map((p) => {
-      const ranks = FEATURED.map((cc) => p.rankings[cc]).filter((r): r is number => typeof r === 'number');
-      return { id: p.id, name: p.name, best: ranks.length ? Math.min(...ranks) : null };
-    })
-    .filter((p): p is { id: string; name: string; best: number } => p.best !== null)
-    .sort((a, b) => a.best - b.best);
-
-  const graphPacks = rankedNow.slice(0, MAX_HISTORY_PACKS).map(({ id, name }) => ({ id, name }));
-
-  // Default the chart to the country where the most of those packs are currently ranked, so the
-  // first render is the creator's strongest market rather than an arbitrary one.
-  const rankedIds = new Set(graphPacks.map((p) => p.id));
-  let defaultCountry = FEATURED[0];
-  let bestCount = -1;
+  // Pick the top packs PER COUNTRY, not one global top-N. A global list is dominated by whichever
+  // market the creator is strongest in and starves the others: NishimuraYuji has 13 packs charting
+  // in Japan but a global top-8 surfaced only 2 of them. The cap also keeps each chart readable
+  // (he has 33 currently-ranked packs across markets) and bounds the read cost on an ISR page
+  // that Google crawls across ~500 creators.
+  const packsByCountry: Record<string, { id: string; name: string }[]> = {};
+  const rankedByCountry: Record<string, number> = {};
   for (const cc of FEATURED) {
-    const n = withRankings.filter((p) => rankedIds.has(p.id) && typeof p.rankings[cc] === 'number').length;
-    if (n > bestCount) {
-      bestCount = n;
-      defaultCountry = cc;
-    }
+    const ranked = withRankings
+      .filter((p) => typeof p.rankings[cc] === 'number')
+      .sort((a, b) => (a.rankings[cc] as number) - (b.rankings[cc] as number));
+    rankedByCountry[cc] = ranked.length;
+    packsByCountry[cc] = ranked.slice(0, TOP_PACKS_PER_COUNTRY).map((p) => ({ id: p.id, name: p.name }));
+  }
+
+  // One history fetch covers the union, so switching country in the chart costs no extra reads.
+  const unionIds = [...new Set(Object.values(packsByCountry).flatMap((ps) => ps.map((p) => p.id)))];
+
+  // Open on the market where this creator has the most packs charting.
+  let defaultCountry: string = FEATURED[0];
+  for (const cc of FEATURED) {
+    if ((rankedByCountry[cc] ?? 0) > (rankedByCountry[defaultCountry] ?? 0)) defaultCountry = cc;
   }
 
   let history: CreatorRankHistoryPoint[] = [];
-  if (graphPacks.length) {
+  if (unionIds.length) {
     try {
-      history = await getCreatorRankHistory(client, graphPacks.map((p) => p.id), 7);
+      history = await getCreatorRankHistory(client, unionIds, 7);
     } catch {
       // Chart is a nice-to-have: on a DB failure the page still renders the table.
     }
@@ -183,10 +182,10 @@ export default async function CreatorPage({ params }: Props) {
       <CreatorClient
         author={author}
         products={withRankings}
-        graphPacks={graphPacks}
+        graphPacksByCountry={packsByCountry}
         graphHistory={history}
         graphDefaultCountry={defaultCountry}
-        rankedTotal={rankedNow.length}
+        rankedByCountry={rankedByCountry}
       />
     </>
   );
