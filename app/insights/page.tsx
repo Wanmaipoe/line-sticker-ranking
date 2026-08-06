@@ -29,12 +29,22 @@ const SUB = 'text-xs text-gray-400 dark:text-gray-500 mt-0.5';
 // Fixed hues per format/character so the same thing is the same colour in all three columns.
 const BAR_COLORS = ['#06c755', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#14b8a6', '#a16207', '#64748b'];
 
-function Bars({ items, max = 6 }: { items: Share[]; max?: number }) {
+/** `minRows` reserves height for a fixed number of rows so the same section lines up across all
+ *  four columns even when a market has fewer entries (Taiwan charts no Custom packs, for example)
+ *  — otherwise every section below it drifts out of alignment and the columns stop being
+ *  comparable at a glance, which is the whole point of the layout. */
+function Bars({ items, max = 6, minRows }: { items: Share[]; max?: number; minRows?: number }) {
   const top = items.slice(0, max);
-  if (!top.length) return <p className="text-xs text-gray-400 dark:text-gray-500">No data yet</p>;
+  const reserve = minRows ? { minHeight: minRows * 16 + (minRows - 1) * 6 } : undefined;
+  if (!top.length)
+    return (
+      <p className="text-xs text-gray-400 dark:text-gray-500" style={reserve}>
+        No data yet
+      </p>
+    );
   const peak = Math.max(...top.map((t) => t.pct), 1);
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" style={reserve}>
       {top.map((t, i) => (
         <div key={t.key} className="flex items-center gap-2">
           <span className="w-20 flex-shrink-0 text-xs text-gray-600 dark:text-gray-300 truncate" title={t.label}>
@@ -57,7 +67,10 @@ function Bars({ items, max = 6 }: { items: Share[]; max?: number }) {
 
 function Stat({ value, label, hint }: { value: string; label: string; hint?: string }) {
   return (
-    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5">
+    // Uniform height: some labels wrap to two lines ("held by top 10 creators") and some don't,
+    // which otherwise makes one column's stat grid taller and knocks every section below it out of
+    // line with the other three.
+    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5 min-h-[87px]">
       <p className="text-lg font-bold text-gray-800 dark:text-gray-100 tabular-nums leading-tight">{value}</p>
       <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight mt-0.5">{label}</p>
       {hint && <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight mt-0.5">{hint}</p>}
@@ -144,6 +157,46 @@ function AllMarkets({ o }: { o: OverallInsight }) {
         />
       </div>
 
+      {/* Format mix / Character mix / Price points come FIRST and in the same order as the country
+          columns, so the three comparable sections sit on the same rows across all four cards.
+          Market reach is unique to this column, so it goes below them rather than shunting them
+          down and breaking the alignment. */}
+      <section>
+        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Format mix</h3>
+        <Bars items={o.formats} max={4} minRows={4} />
+        {/* Mirrors the per-country caption below the same chart, both to say something useful and
+            to keep this column's following sections level with theirs. */}
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+          Combined across all three markets — see each column for how a format indexes at the top.
+        </p>
+      </section>
+
+      <section>
+        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Character mix</h3>
+        <Bars items={o.characters} max={6} minRows={6} />
+      </section>
+
+      <section>
+        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Price points</h3>
+        <div className="flex flex-wrap gap-1.5">
+          {o.prices.map((p, i) => (
+            <span
+              key={p.price}
+              className={`text-xs px-2 py-1 rounded-lg border ${
+                i === 0
+                  ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-300 font-medium'
+                  : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              {usd(p.price)} · {p.pct}%
+            </span>
+          ))}
+        </div>
+        {o.medianPrice != null && (
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">Median {usd(o.medianPrice)}</p>
+        )}
+      </section>
+
       <section>
         <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Market reach</h3>
         <div className="space-y-1.5">
@@ -167,37 +220,6 @@ function AllMarkets({ o }: { o: OverallInsight }) {
         <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
           Almost every pack is a local hit — crossing markets is rare.
         </p>
-      </section>
-
-      <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Format mix</h3>
-        <Bars items={o.formats} max={4} />
-      </section>
-
-      <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Character mix</h3>
-        <Bars items={o.characters} max={6} />
-      </section>
-
-      <section>
-        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Price points</h3>
-        <div className="flex flex-wrap gap-1.5">
-          {o.prices.map((p, i) => (
-            <span
-              key={p.price}
-              className={`text-xs px-2 py-1 rounded-lg border ${
-                i === 0
-                  ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-300 font-medium'
-                  : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              {usd(p.price)} · {p.pct}%
-            </span>
-          ))}
-        </div>
-        {o.medianPrice != null && (
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">Median {usd(o.medianPrice)}</p>
-        )}
       </section>
 
       {o.characterTravel.length > 0 && (
@@ -286,7 +308,7 @@ function CountryColumn({ c }: { c: CountryInsight }) {
 
       <section>
         <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Format mix</h3>
-        <Bars items={c.formats} max={4} />
+        <Bars items={c.formats} max={4} minRows={4} />
         <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
           Animated is <b className="text-gray-600 dark:text-gray-300">{c.animatedTop50Pct}%</b> of the top 50 vs{' '}
           {c.animatedOverallPct}% overall
@@ -303,7 +325,7 @@ function CountryColumn({ c }: { c: CountryInsight }) {
 
       <section>
         <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">Character mix</h3>
-        <Bars items={c.characters} max={6} />
+        <Bars items={c.characters} max={6} minRows={6} />
       </section>
 
       <section>
