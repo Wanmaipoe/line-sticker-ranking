@@ -1,7 +1,7 @@
 import { createClient, type Client } from '@libsql/client';
 import { COUNTRY_ORDER, FEATURED_COUNTRIES } from './countries';
 import { categoryOf } from './categories';
-import { characterOf } from './characters';
+import { characterOf, CHARACTER_MAP } from './characters';
 
 let _client: Client | null = null;
 
@@ -596,6 +596,152 @@ export async function getCreatorRankHistory(
 }
 
 export type CreatorRankHistoryPoint = Awaited<ReturnType<typeof getCreatorRankHistory>>[number];
+
+/**
+ * Rank a pack is treated as holding in a market where it is NOT charting.
+ *
+ * The chart is 500 deep, so "off the chart" means "501st or worse" — we cannot know which. Scoring
+ * a missing market as 500 is the most generous reading of the unknown, and it has to be SOME
+ * number: skipping it and averaging only the markets a pack does chart in would rank a pack that
+ * is #1 in Thailand and absent everywhere else above one that is #3 in all three, which is the
+ * opposite of what a cross-market ranking should say.
+ */
+export const UNRANKED_RANK = 500;
+
+export interface GlobalRankedPack {
+  id: string;
+  name: string;
+  image_url: string | null;
+  author: string | null;
+  /** Character key (cat/dog/...), or null when the classifier has not labelled the pack yet. */
+  character: string | null;
+  /** Country code -> live rank, or null where the pack is off that country's chart. */
+  ranks: Record<string, number | null>;
+  /** Mean rank across every featured market, with a missing market counted as UNRANKED_RANK. */
+  score: number;
+  /** Best single-market rank — the tie-break, and what the row shows as the pack's peak. */
+  bestRank: number;
+  /** How many of the featured markets it charts in (1-3). */
+  markets: number;
+}
+
+export interface GlobalStickerRanking {
+  asOf: string | null;
+  countries: readonly string[];
+  packs: GlobalRankedPack[];
+  /** Distinct packs charting in at least one market — the field the top N was picked from. */
+  totalPacks: number;
+  /** Per character: how many packs it has charting, and what share of them cross a border. */
+  characterTravel: { key: string; label: string; packs: number; multiPct: number }[];
+}
+
+/**
+ * One cross-market leaderboard: average the pack's rank over all three featured markets (an absent
+ * market counting as UNRANKED_RANK) and order by that, lowest first.
+ *
+ * Deliberately a single query — the same `snap` CTE index-seek the creator/category/character
+ * pages use — because the rows that produce the leaderboard are also everything the "characters
+ * that travel" block needs. Computing both here costs ~1500 rows once instead of the ~3000 that
+ * calling getMarketInsights() alongside this would spend on the same snapshot.
+ */
+export async function getGlobalStickerRanking(
+  client: Client,
+  limit = 100
+): Promise<GlobalStickerRanking> {
+  const CC = FEATURED_COUNTRIES;
+  const ccUnion = CC.map((_, i) => (i === 0 ? 'SELECT ? AS country' : 'UNION ALL SELECT ?')).join(' ');
+  const result = await client.execute({
+    sql: `WITH snap AS (
+            SELECT c.country AS country,
+              (SELECT snapshot_date FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS d,
+              (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS h
+            FROM (${ccUnion}) AS c
+          )
+          SELECT cur.country AS country, cur.rank AS rank, s.d AS d,
+                 p.id AS id, p.name AS name, p.image_url AS image_url, p.author AS author,
+                 p.character_type AS character_type
+          FROM snap s
+          JOIN rankings cur ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
+          JOIN products p ON p.id = cur.product_id`,
+    args: [...CC],
+  });
+
+  const packs = new Map<string, GlobalRankedPack>();
+  let asOf: string | null = null;
+
+  for (const r of result.rows) {
+    const id = r.id as string;
+    const cc = r.country as string;
+    const rank = r.rank as number;
+    const d = r.d as string | null;
+    if (d && (!asOf || d > asOf)) asOf = d;
+
+    let p = packs.get(id);
+    if (!p) {
+      p = {
+        id,
+        name: r.name as string,
+        image_url: (r.image_url as string | null) ?? null,
+        author: (r.author as string | null) ?? null,
+        character: characterOf(r.character_type as string | null),
+        // Every market starts absent; the loop fills in the ones this pack actually charts in.
+        ranks: Object.fromEntries(CC.map((c) => [c, null])),
+        score: 0,
+        bestRank: rank,
+        markets: 0,
+      };
+      packs.set(id, p);
+    }
+    p.ranks[cc] = rank;
+    if (rank < p.bestRank) p.bestRank = rank;
+  }
+
+  for (const p of packs.values()) {
+    let sum = 0;
+    for (const cc of CC) {
+      const r = p.ranks[cc];
+      if (r == null) sum += UNRANKED_RANK;
+      else {
+        sum += r;
+        p.markets += 1;
+      }
+    }
+    // One decimal: with a 3-market mean, thirds are the only fractions that occur and rounding to
+    // integers would collapse genuinely different packs onto the same score.
+    p.score = Math.round((sum / CC.length) * 10) / 10;
+  }
+
+  // packs per character, and how many of those cross a border — same definition as the insights
+  // page, computed from the same one-row-per-pack fold so the two pages cannot disagree.
+  const chrTotal = new Map<string, number>();
+  const chrMulti = new Map<string, number>();
+  for (const p of packs.values()) {
+    if (!p.character) continue;
+    chrTotal.set(p.character, (chrTotal.get(p.character) ?? 0) + 1);
+    if (p.markets >= 2) chrMulti.set(p.character, (chrMulti.get(p.character) ?? 0) + 1);
+  }
+
+  const ranked = [...packs.values()]
+    .sort((a, b) => a.score - b.score || a.bestRank - b.bestRank || a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  return {
+    asOf,
+    countries: CC,
+    packs: ranked,
+    totalPacks: packs.size,
+    // Below 15 packs a single crossover swings the percentage wildly, so those are noise.
+    characterTravel: [...chrTotal.entries()]
+      .filter(([, n]) => n >= 15)
+      .map(([key, n]) => ({
+        key,
+        label: CHARACTER_MAP[key] ? `${CHARACTER_MAP[key].emoji} ${CHARACTER_MAP[key].label}` : key,
+        packs: n,
+        multiPct: n > 0 ? Math.round(((chrMulti.get(key) ?? 0) / n) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.multiPct - a.multiPct),
+  };
+}
 
 export async function getRankingHistory(client: Client, productId: string, country: string, days = 30) {
   const result = await client.execute({

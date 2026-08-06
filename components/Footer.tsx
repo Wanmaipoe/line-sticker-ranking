@@ -7,6 +7,8 @@ export default function Footer() {
         <a href="/about" className="hover:text-green-600 dark:hover:text-green-400">About &amp; methodology</a>
         {' · '}
         <a href="/creators" className="hover:text-green-600 dark:hover:text-green-400">Top creators</a>
+        {' · '}
+        <a href="/top-stickers" className="hover:text-green-600 dark:hover:text-green-400">Top stickers</a>
       </p>
       <p className="font-semibold text-gray-500 dark:text-gray-400">11tumarai Company</p>
       <p>
