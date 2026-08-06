@@ -105,7 +105,9 @@ export default function CreatorClient({
               leads on mobile, where a single column would otherwise bury it under ~40 rows. */}
           {graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0) && (
             <div className="order-1 lg:order-2 lg:sticky lg:top-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 dark:ring-1 dark:ring-white/10 p-4">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Ranking history</h2>
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                Top Ranking History
+              </h2>
               <CreatorRankGraph
                 packsByCountry={graphPacksByCountry}
                 history={graphHistory}
