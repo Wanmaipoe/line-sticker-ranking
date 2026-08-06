@@ -46,7 +46,10 @@ export default function CreatorClient({
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      {/* Wider than the other pages: below it holds a two-column layout (ranks | chart), and at
+          max-w-5xl each column would be ~490px, too narrow for both the rank table and the chart
+          legend. */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3">
           <BackButton />
           <span className="text-gray-300 dark:text-gray-600">·</span>
@@ -70,27 +73,38 @@ export default function CreatorClient({
           </button>
         </div>
 
-        {/* Ranking history for the creator's currently-ranked packs. Server-rendered from data
-            fetched once with the page; the Refresh button above only refreshes the table's live
-            ranks, so this chart intentionally does not re-fetch (7-day history barely moves). */}
-        {graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0) && (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 dark:ring-1 dark:ring-white/10 p-4 mb-6">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Ranking history</h2>
-            <CreatorRankGraph
-              packsByCountry={graphPacksByCountry}
-              history={graphHistory}
-              defaultCountry={graphDefaultCountry}
-              rankedByCountry={rankedByCountry}
+        {/* Ranks on the LEFT, chart on the RIGHT. Stacking a full-width chart on top of a
+            full-width table read as cluttered; side by side, each is half the visual weight and
+            the numbers (the thing people come for) lead. DOM order puts the table first so the
+            single-column mobile view shows ranks before the chart. */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+          <div className="order-2 lg:order-1">
+            <StickersRankTable
+              products={products}
+              isFavorite={isFavorite}
+              onToggleFavorite={toggle}
+              defaultSortKey="th"
             />
           </div>
-        )}
 
-        <StickersRankTable
-          products={products}
-          isFavorite={isFavorite}
-          onToggleFavorite={toggle}
-          defaultSortKey="th"
-        />
+          {/* Server-rendered from data fetched once with the page; the Refresh button above only
+              refreshes the table's live ranks, so this chart intentionally does not re-fetch
+              (7-day history barely moves). Sticky on desktop: the table can run to 100 rows while
+              this card is short, so without it the right column would be mostly dead space.
+              Order is flipped by breakpoint — the chart trails the ranks in the desktop grid, but
+              leads on mobile, where a single column would otherwise bury it under ~40 rows. */}
+          {graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0) && (
+            <div className="order-1 lg:order-2 lg:sticky lg:top-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 dark:ring-1 dark:ring-white/10 p-4">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Ranking history</h2>
+              <CreatorRankGraph
+                packsByCountry={graphPacksByCountry}
+                history={graphHistory}
+                defaultCountry={graphDefaultCountry}
+                rankedByCountry={rankedByCountry}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
