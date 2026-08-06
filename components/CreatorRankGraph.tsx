@@ -42,12 +42,15 @@ interface Props {
   rankedByCountry: Record<string, number>;
 }
 
-// One colour per plotted pack. Distinct hues that hold up on both light and dark surfaces; the
-// first is LINE green so a single-pack creator still looks on-brand.
-const SERIES_COLORS = [
-  '#06c755', '#ef4444', '#3b82f6', '#f59e0b',
-  '#8b5cf6', '#ec4899', '#14b8a6', '#a16207',
-];
+// An ORDERED ramp, not an arbitrary palette: the colour encodes rank position (best -> worst), so
+// the legend reads as a gradient and you can tell roughly where a line sits without tracing it.
+// Hue runs violet -> blue -> teal -> green -> lime -> gold. That progression survives red/green
+// colour blindness (a true red-to-violet rainbow collapses at both ends) and is perceptually even,
+// so no mid-rank line visually shouts louder than #1 the way rainbow yellow does.
+// Two sets because the card is white in light mode and near-black in dark — one ramp would either
+// wash out on white or vanish on dark. Light uses Tailwind -700 shades, dark uses -400.
+const RAMP_LIGHT = ['#5b21b6', '#1d4ed8', '#0e7490', '#0f766e', '#15803d', '#4d7c0f', '#a16207'];
+const RAMP_DARK = ['#a78bfa', '#60a5fa', '#22d3ee', '#2dd4bf', '#4ade80', '#a3e635', '#facc15'];
 const HOURLY_WINDOW_H = 48;
 const DAYS = 7;
 
@@ -153,7 +156,17 @@ export default function CreatorRankGraph({
 
   // Only plot packs that actually charted in this country during the window.
   const shown = packs.filter((p) => (seriesByPack.get(p.id)?.size ?? 0) > 0);
-  const colorOf = (id: string) => SERIES_COLORS[packs.findIndex((p) => p.id === id) % SERIES_COLORS.length];
+  // `packs` arrives sorted best-rank-first, and `shown` preserves that, so a line's index IS its
+  // rank position. Spread the ramp across however many lines are actually drawn rather than taking
+  // the first N entries: with two lines that yields the two ends (violet + gold, maximally
+  // distinct) instead of two adjacent shades of violet.
+  const ramp = isDark ? RAMP_DARK : RAMP_LIGHT;
+  const colorOf = (id: string) => {
+    const i = shown.findIndex((p) => p.id === id);
+    if (i < 0) return ramp[0];
+    const t = shown.length <= 1 ? 0 : i / (shown.length - 1);
+    return ramp[Math.round(t * (ramp.length - 1))];
+  };
 
   // Drop x slots where the ACTIVE country has no data for ANY pack. The domain is built from every
   // country's snapshot times, but a country can be missing a run (the scraper continues past a
