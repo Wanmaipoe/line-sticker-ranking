@@ -554,6 +554,12 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
             instead of overflowing the header. */}
         <div className="max-w-6xl mx-auto px-4 flex flex-wrap items-center gap-1 border-t border-gray-50 dark:border-gray-800">
           <a
+            href="/insights"
+            className="flex items-center gap-1.5 px-3 py-2.5 -mb-px text-sm font-medium border-b-2 border-transparent text-gray-600 dark:text-gray-300 hover:border-[#06c755] hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+          >
+            📊 Insights
+          </a>
+          <a
             href="/favorites"
             className="flex items-center gap-1.5 px-3 py-2.5 -mb-px text-sm font-medium border-b-2 border-transparent text-gray-600 dark:text-gray-300 hover:border-red-400 dark:hover:border-red-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
           >
