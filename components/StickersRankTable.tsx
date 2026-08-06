@@ -26,6 +26,10 @@ interface Props {
   isFavorite?: (id: string) => boolean;
   onToggleFavorite?: (id: string) => void;
   showAuthorLink?: boolean;
+  // Optional: fires with a product id while the pointer is over its row, and null on leave. The
+  // creator page uses it to spotlight that pack's line in the chart beside the table. Purely a
+  // pointer affordance — nothing depends on it, and it never fires on touch.
+  onHoverProduct?: (id: string | null) => void;
   // Country code to sort by on first render (ascending, best rank first). Unranked (—) sink to the
   // bottom. The user can still click any column to re-sort. Omit for the original server order.
   defaultSortKey?: string;
@@ -62,7 +66,7 @@ function Thumb({ id, name, image_url }: { id: string; name: string; image_url: s
   );
 }
 
-export default function StickersRankTable({ products, isFavorite, onToggleFavorite, showAuthorLink, defaultSortKey }: Props) {
+export default function StickersRankTable({ products, isFavorite, onToggleFavorite, showAuthorLink, defaultSortKey, onHoverProduct }: Props) {
   const router = useRouter();
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(
     defaultSortKey ? { key: defaultSortKey, dir: 'asc' } : null
@@ -218,6 +222,8 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
               key={p.id}
               className="border-t border-gray-50 dark:border-gray-800 hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors cursor-pointer"
               onClick={() => router.push(`/sticker/${p.id}`)}
+              onMouseEnter={onHoverProduct ? () => onHoverProduct(p.id) : undefined}
+              onMouseLeave={onHoverProduct ? () => onHoverProduct(null) : undefined}
             >
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">

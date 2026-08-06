@@ -1,10 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { useFavorites } from '@/hooks/useFavorites';
 import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
 import BackButton from '@/components/BackButton';
 import CreatorRankGraph, { CreatorGraphPack, CreatorGraphPoint } from '@/components/CreatorRankGraph';
+
+// Memoised so moving the pointer down the rows re-renders only the chart. Without this, every
+// row change would also re-render the table itself — up to 100 rows, each with an image — on every
+// mouseenter. Its props are all referentially stable between hovers (see the useCallback below).
+const MemoStickersRankTable = memo(StickersRankTable);
 
 interface Props {
   author: string;
@@ -29,6 +34,10 @@ export default function CreatorClient({
   // reads are spent per-click (~175 index-seek rows via /api/creator), never in the background.
   const [products, setProducts] = useState<ProductWithRankings[]>(initialProducts);
   const [refreshing, setRefreshing] = useState(false);
+  // Pack the pointer is over in the table; the chart spotlights its line and fades the others.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Stable identity, so it never invalidates MemoStickersRankTable.
+  const handleHover = useCallback((id: string | null) => setHoveredId(id), []);
 
   async function refresh() {
     if (refreshing) return; // guard against double / spam clicks so one intent = one read
@@ -79,11 +88,12 @@ export default function CreatorClient({
             single-column mobile view shows ranks before the chart. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
           <div className="order-2 lg:order-1">
-            <StickersRankTable
+            <MemoStickersRankTable
               products={products}
               isFavorite={isFavorite}
               onToggleFavorite={toggle}
               defaultSortKey="th"
+              onHoverProduct={handleHover}
             />
           </div>
 
@@ -101,6 +111,7 @@ export default function CreatorClient({
                 history={graphHistory}
                 defaultCountry={graphDefaultCountry}
                 rankedByCountry={rankedByCountry}
+                highlightId={hoveredId}
               />
             </div>
           )}

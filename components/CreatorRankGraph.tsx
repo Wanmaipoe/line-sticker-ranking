@@ -40,6 +40,10 @@ interface Props {
   defaultCountry: string;
   // Packs ranked in each country, for the "showing N of M" note.
   rankedByCountry: Record<string, number>;
+  // Product id the pointer is over in the rank table beside this chart; that pack's line stays
+  // full-strength while the rest fade back. Ignored when the id isn't one of the plotted lines,
+  // so hovering an unplotted pack doesn't grey out the whole chart for no reason.
+  highlightId?: string | null;
 }
 
 // An ORDERED ramp, not an arbitrary palette: the colour encodes rank position (best -> worst), so
@@ -51,6 +55,11 @@ interface Props {
 // wash out on white or vanish on dark. Light uses Tailwind -700 shades, dark uses -400.
 const RAMP_LIGHT = ['#5b21b6', '#1d4ed8', '#0e7490', '#0f766e', '#15803d', '#4d7c0f', '#a16207'];
 const RAMP_DARK = ['#a78bfa', '#60a5fa', '#22d3ee', '#2dd4bf', '#4ade80', '#a3e635', '#facc15'];
+// Colour the non-spotlit lines fall back to. Deliberately a mid grey rather than the gridline
+// colour: the point is to push them back, not delete them — you still want to see where the
+// spotlit pack sits relative to the others.
+const DIM_LIGHT = '#cbd5e1';
+const DIM_DARK = '#475569';
 const HOURLY_WINDOW_H = 48;
 const DAYS = 7;
 
@@ -86,6 +95,7 @@ export default function CreatorRankGraph({
   history,
   defaultCountry,
   rankedByCountry,
+  highlightId = null,
 }: Props) {
   const [country, setCountry] = useState(defaultCountry);
   const [freq, setFreq] = useState<'daily' | 'hourly'>('daily');
@@ -160,6 +170,10 @@ export default function CreatorRankGraph({
   // rank position. Spread the ramp across however many lines are actually drawn rather than taking
   // the first N entries: with two lines that yields the two ends (violet + gold, maximally
   // distinct) instead of two adjacent shades of violet.
+  // Only spotlight when the hovered pack is actually drawn here — hovering a row for a pack that
+  // isn't in this country's top 7 would otherwise grey out every line and highlight nothing.
+  const spotlit = highlightId && shown.some((p) => p.id === highlightId) ? highlightId : null;
+
   const ramp = isDark ? RAMP_DARK : RAMP_LIGHT;
   const colorOf = (id: string) => {
     const i = shown.findIndex((p) => p.id === id);
@@ -311,7 +325,12 @@ export default function CreatorRankGraph({
               key={p.id}
               href={`/sticker/${p.id}`}
               title={p.name}
-              className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 max-w-[190px]"
+              // Fade in step with the lines so the legend points at the spotlit pack too.
+              className={`flex items-center gap-1 text-xs max-w-[190px] transition-opacity hover:text-green-600 dark:hover:text-green-400 ${
+                spotlit && p.id !== spotlit
+                  ? 'opacity-40 text-gray-500 dark:text-gray-400'
+                  : 'text-gray-500 dark:text-gray-400'
+              } ${spotlit === p.id ? 'font-semibold text-gray-800 dark:text-gray-100' : ''}`}
             >
               <span
                 className="inline-block w-3 h-0.5 rounded flex-shrink-0"
@@ -379,19 +398,26 @@ export default function CreatorRankGraph({
                 label={{ value: 'Over #500', fontSize: 10, fill: '#ef4444', position: 'insideBottomLeft' }}
               />
             )}
-            {shown.map((p) => (
-              <Line
-                key={p.id}
-                type="monotone"
-                dataKey={keyFor(p.id)}
-                name={p.name}
-                stroke={colorOf(p.id)}
-                strokeWidth={2}
-                connectNulls
-                dot={{ r: 2, strokeWidth: 0, fill: colorOf(p.id) }}
-                activeDot={{ r: 4.5 }}
-              />
-            ))}
+            {shown.map((p) => {
+              const dimmed = spotlit !== null && p.id !== spotlit;
+              return (
+                <Line
+                  key={p.id}
+                  type="monotone"
+                  dataKey={keyFor(p.id)}
+                  name={p.name}
+                  stroke={dimmed ? (isDark ? DIM_DARK : DIM_LIGHT) : colorOf(p.id)}
+                  strokeWidth={spotlit === p.id ? 3 : 2}
+                  strokeOpacity={dimmed ? 0.9 : 1}
+                  connectNulls
+                  // Hide the per-point dots on faded lines: 168 grey dots are what makes a
+                  // dimmed line still read as clutter rather than as background.
+                  dot={dimmed ? false : { r: 2, strokeWidth: 0, fill: colorOf(p.id) }}
+                  activeDot={{ r: 4.5 }}
+                  isAnimationActive={false}
+                />
+              );
+            })}
           </LineChart>
         </ResponsiveContainer>
       )}
