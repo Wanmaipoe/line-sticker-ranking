@@ -598,6 +598,88 @@ export async function getCreatorRankHistory(
 
 export type CreatorRankHistoryPoint = Awaited<ReturnType<typeof getCreatorRankHistory>>[number];
 
+export interface PackLifecycle {
+  product_id: string;
+  country: string;
+  /** First snapshot this pack ever appears in for this country. */
+  first_date: string;
+  /** Its rank in that first snapshot — the debut position. */
+  debut_rank: number;
+  /** Most recent snapshot it appears in (today if still charting, its exit day if not). */
+  last_date: string;
+}
+
+export interface PackLifecycles {
+  packs: PackLifecycle[];
+  /** Earliest retained snapshot per country — the horizon: a pack "first seen" on this date may
+   *  really be older, so day counts starting there must be shown as "at least". */
+  oldestByCountry: Record<string, string | null>;
+}
+
+/**
+ * When each pack entered and last appeared in each market's chart — the input for the creator
+ * page's "new this month" / "chart veterans" analysis.
+ *
+ * Cost model (this runs on an ISR page Google crawls across ~500 creators, so it must NOT scale
+ * with history size): every column is a correlated ORDER BY … LIMIT 1 subquery on the PK
+ * (product_id, country, snapshot_date, snapshot_hour), i.e. a single-row index seek. ~3 seeks ×
+ * packs × countries — a 43-pack creator costs ~390 rows, roughly what the current-rank lookup
+ * already spends, regardless of how many months of history the table holds. A MIN/MAX GROUP BY
+ * would read every retained row of every pack (tens of thousands) for the same answer.
+ */
+export async function getPackLifecycles(
+  client: Client,
+  productIds: string[],
+  countries: readonly string[]
+): Promise<PackLifecycles> {
+  const oldestByCountry: Record<string, string | null> = Object.fromEntries(countries.map((c) => [c, null]));
+  if (!productIds.length) return { packs: [], oldestByCountry };
+
+  const ids = productIds.slice(0, 100); // matches getProductsByAuthor's cap
+  // ids go through json_each, NOT a `SELECT ? UNION ALL …` chain: Turso rejects compound SELECTs
+  // past ~50 terms ("too many terms in compound SELECT"), and big creators clear that (nagano: 56
+  // packs). json_each takes the whole list as ONE bound JSON array, so there is no term limit.
+  const ccUnion = countries.map((_, i) => (i === 0 ? 'SELECT ? AS cc' : 'UNION ALL SELECT ?')).join(' ');
+
+  const [life, oldest] = await Promise.all([
+    client.execute({
+      sql: `WITH ids AS (SELECT value AS pid FROM json_each(?)), ccs AS (${ccUnion})
+            SELECT i.pid AS pid, c.cc AS cc,
+              (SELECT snapshot_date FROM rankings WHERE product_id = i.pid AND country = c.cc ORDER BY snapshot_date ASC, snapshot_hour ASC LIMIT 1) AS first_date,
+              (SELECT rank          FROM rankings WHERE product_id = i.pid AND country = c.cc ORDER BY snapshot_date ASC, snapshot_hour ASC LIMIT 1) AS debut_rank,
+              (SELECT snapshot_date FROM rankings WHERE product_id = i.pid AND country = c.cc ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS last_date
+            FROM ids i CROSS JOIN ccs c`,
+      args: [JSON.stringify(ids), ...countries],
+    }),
+    // Seek per country on idx_rankings_country_date_hour — the retention horizon.
+    client.execute({
+      sql: `WITH ccs AS (${ccUnion})
+            SELECT c.cc AS cc,
+              (SELECT snapshot_date FROM rankings WHERE country = c.cc ORDER BY snapshot_date ASC LIMIT 1) AS oldest
+            FROM ccs c`,
+      args: [...countries],
+    }),
+  ]);
+
+  for (const r of oldest.rows) {
+    oldestByCountry[r.cc as string] = (r.oldest as string | null) ?? null;
+  }
+
+  const packs: PackLifecycle[] = [];
+  for (const r of life.rows) {
+    // A pack that never charted in this country returns NULLs — not a lifecycle, skip it.
+    if (r.first_date == null || r.last_date == null || r.debut_rank == null) continue;
+    packs.push({
+      product_id: r.pid as string,
+      country: r.cc as string,
+      first_date: r.first_date as string,
+      debut_rank: r.debut_rank as number,
+      last_date: r.last_date as string,
+    });
+  }
+  return { packs, oldestByCountry };
+}
+
 // Defined in lib/ranking.ts (a client component needs it, and importing from here would pull
 // @libsql/client into the browser bundle); re-exported so server callers can keep using db.ts.
 export { UNRANKED_RANK } from './ranking';

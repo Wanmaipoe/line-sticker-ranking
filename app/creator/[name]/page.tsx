@@ -3,14 +3,19 @@ import {
   getProductsByAuthor,
   getProductsWithRankings,
   getCreatorRankHistory,
+  getPackLifecycles,
+  getCreatorLeaderboards,
   TOP_PACKS_PER_COUNTRY,
   type CreatorRankHistoryPoint,
+  type PackLifecycles,
 } from '@/lib/db';
 import { FEATURED_COUNTRIES } from '@/lib/countries';
+import { analyzeCreator, type CreatorAnalysis, type CreatorBenchmark } from '@/lib/creator-analysis';
 import CreatorClient from './CreatorClient';
 import JsonLd from '@/components/JsonLd';
 import { SITE_URL, SITE_NAME } from '@/lib/seo';
 import { notFound } from 'next/navigation';
+import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import type { Metadata } from 'next';
 
@@ -36,6 +41,35 @@ function safeDecode(s: string): string | null {
 }
 
 const FEATURED = FEATURED_COUNTRIES;
+
+// The "vs top creator" benchmark is IDENTICAL for every creator page, so it lives in the shared
+// data cache instead of being refetched per page: measured at ~1.2k rows per fetch, per-page it
+// would cost ~40M reads/month at crawl traffic; cached it is ~2k rows once per 30 min (~3M/month).
+// The top TWO creators are cached so a page whose creator IS #1 falls through to #2 without
+// needing a per-author cache key — the pool stays global.
+const getBenchmarkPool = unstable_cache(
+  async (): Promise<{ author: string; analysis: CreatorAnalysis }[]> => {
+    const client = getDb();
+    const boards = await getCreatorLeaderboards(client, 100, 2);
+    const entries: { author: string; analysis: CreatorAnalysis }[] = [];
+    for (const c of boards.all.slice(0, 2)) {
+      const bProducts = await getProductsByAuthor(client, c.author);
+      const bIds = bProducts.map((p) => p.id);
+      const [bRankings, bLifecycles] = await Promise.all([
+        getProductsWithRankings(client, bIds, FEATURED),
+        getPackLifecycles(client, bIds, FEATURED),
+      ]);
+      // Empty history is deliberate: the benchmark never shows a "peak this week", and fetching
+      // 7-day history for it would put the page's single biggest cost on the shared path too.
+      const analysis = analyzeCreator(bProducts, bRankings, [], bLifecycles, FEATURED);
+      if (analysis) entries.push({ author: c.author, analysis });
+    }
+    return entries;
+  },
+  ['creator-benchmark-pool'],
+  // Matches the page's own ISR window — fresher than the pages consuming it would be wasted reads.
+  { revalidate: 1800 }
+);
 
 interface Props {
   params: Promise<{ name: string }>;
@@ -145,6 +179,36 @@ export default async function CreatorPage({ params }: Props) {
     }
   }
 
+  // When each pack entered/left each chart — seek-only (~3 rows per pack per market), powering the
+  // "new this month" and "chart veterans" sections. Fetched separately from the analysis call so a
+  // failure here degrades to a card without those two sections, not a missing card.
+  let lifecycles: PackLifecycles | null = null;
+  if (products.length) {
+    try {
+      lifecycles = await getPackLifecycles(client, products.map((p) => p.id), FEATURED);
+    } catch {
+      // Lifecycle sections are a nice-to-have.
+    }
+  }
+
+  // Pure computation over data already in memory — no reads on top of what the page spent above.
+  const analysis = analyzeCreator(products, rankings, history, lifecycles, FEATURED);
+
+  // "vs top creator": pulled from the shared 30-min pool (see getBenchmarkPool above), measured
+  // with the SAME analyzeCreator pass so the comparison is like-for-like. Wrapped separately:
+  // a failure hides the benchmark column, not the whole analysis card.
+  let benchmark: CreatorBenchmark | null = null;
+  if (analysis) {
+    try {
+      const pool = await getBenchmarkPool();
+      const youAreTop = pool[0]?.author === author;
+      const pick = pool.find((e) => e.author !== author);
+      if (pick) benchmark = { author: pick.author, youAreTop, analysis: pick.analysis };
+    } catch {
+      // Benchmark is a nice-to-have.
+    }
+  }
+
   const creatorUrl = `${SITE_URL}/creator/${encodeURIComponent(author)}`;
   const jsonLd = products.length
     ? [
@@ -187,6 +251,8 @@ export default async function CreatorPage({ params }: Props) {
         graphHistory={history}
         graphDefaultCountry={defaultCountry}
         rankedByCountry={rankedByCountry}
+        analysis={analysis}
+        benchmark={benchmark}
       />
     </>
   );

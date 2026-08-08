@@ -5,6 +5,8 @@ import { useFavorites } from '@/hooks/useFavorites';
 import StickersRankTable, { ProductWithRankings } from '@/components/StickersRankTable';
 import BackButton from '@/components/BackButton';
 import CreatorRankGraph, { CreatorGraphPack, CreatorGraphPoint } from '@/components/CreatorRankGraph';
+import CreatorAnalysisCard from './CreatorAnalysisCard';
+import type { CreatorAnalysis, CreatorBenchmark } from '@/lib/creator-analysis';
 
 // Memoised so moving the pointer down the rows re-renders only the chart. Without this, every
 // row change would also re-render the table itself — up to 100 rows, each with an image — on every
@@ -18,6 +20,8 @@ interface Props {
   graphHistory: CreatorGraphPoint[];
   graphDefaultCountry: string;
   rankedByCountry: Record<string, number>;
+  analysis: CreatorAnalysis | null;
+  benchmark: CreatorBenchmark | null;
 }
 
 export default function CreatorClient({
@@ -27,6 +31,8 @@ export default function CreatorClient({
   graphHistory,
   graphDefaultCountry,
   rankedByCountry,
+  analysis,
+  benchmark,
 }: Props) {
   const { isFavorite, toggle } = useFavorites();
   // The page itself is ISR-cached (cheap, but up to ~1h behind the hourly scrape). This lets
@@ -98,23 +104,33 @@ export default function CreatorClient({
           </div>
 
           {/* Server-rendered from data fetched once with the page; the Refresh button above only
-              refreshes the table's live ranks, so this chart intentionally does not re-fetch
-              (7-day history barely moves). Sticky on desktop: the table can run to 100 rows while
-              this card is short, so without it the right column would be mostly dead space.
-              Order is flipped by breakpoint — the chart trails the ranks in the desktop grid, but
-              leads on mobile, where a single column would otherwise bury it under ~40 rows. */}
-          {graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0) && (
-            <div className="order-1 lg:order-2 lg:sticky lg:top-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 dark:ring-1 dark:ring-white/10 p-4">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                Top Ranking History
-              </h2>
-              <CreatorRankGraph
-                packsByCountry={graphPacksByCountry}
-                history={graphHistory}
-                defaultCountry={graphDefaultCountry}
-                rankedByCountry={rankedByCountry}
-                highlightId={hoveredId}
-              />
+              refreshes the table's live ranks, so this column intentionally does not re-fetch
+              (7-day history barely moves). Sticky on desktop: the table can run to 100 rows, so
+              without it the right column would be mostly dead space. The column caps at viewport
+              height and scrolls internally — with two cards stacked, a plain sticky would pin the
+              top and leave the analysis card's tail unreachable on short screens.
+              Order is flipped by breakpoint — the column trails the ranks in the desktop grid, but
+              leads on mobile, where a single column would otherwise bury the chart under ~40 rows. */}
+          {(analysis !== null ||
+            (graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0))) && (
+            <div className="order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto space-y-4">
+              {graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0) && (
+                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 dark:ring-1 dark:ring-white/10 p-4">
+                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                    Top Ranking History
+                  </h2>
+                  <CreatorRankGraph
+                    packsByCountry={graphPacksByCountry}
+                    history={graphHistory}
+                    defaultCountry={graphDefaultCountry}
+                    rankedByCountry={rankedByCountry}
+                    highlightId={hoveredId}
+                  />
+                </div>
+              )}
+              {analysis !== null && (
+                <CreatorAnalysisCard a={analysis} author={author} benchmark={benchmark} />
+              )}
             </div>
           )}
         </div>

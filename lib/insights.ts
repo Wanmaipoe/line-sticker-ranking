@@ -108,8 +108,10 @@ function median(xs: number[]): number | null {
 }
 
 /** Numbered sequels: "vol.2", "V.3", "… 2", "Part 4". A pack whose title carries a number is
- *  almost always an instalment of a proven character rather than a fresh idea. */
-const SEQUEL_RE = /(\bvol\b|\bv\.?\s*\d|\bpart\b|\b[2-9]\b|\b1[0-9]\b)/i;
+ *  almost always an instalment of a proven character rather than a fresh idea.
+ *  Exported so the creator-page analysis (lib/creator-analysis.ts) counts sequels with the SAME
+ *  definition — two regexes drifting apart would let the two pages disagree about the same pack. */
+export const SEQUEL_RE = /(\bvol\b|\bv\.?\s*\d|\bpart\b|\b[2-9]\b|\b1[0-9]\b)/i;
 
 function shares(counts: Map<string, number>, total: number, label: (k: string) => string): Share[] {
   return [...counts.entries()]
