@@ -90,10 +90,10 @@ export default function CreatorClient({
 
         {/* Ranks on the LEFT, chart on the RIGHT. Stacking a full-width chart on top of a
             full-width table read as cluttered; side by side, each is half the visual weight and
-            the numbers (the thing people come for) lead. DOM order puts the table first so the
-            single-column mobile view shows ranks before the chart. */}
+            the numbers (the thing people come for) lead. Mobile follows plain DOM order:
+            ranks -> chart -> analysis, top to bottom. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
-          <div className="order-2 lg:order-1">
+          <div>
             <MemoStickersRankTable
               products={products}
               isFavorite={isFavorite}
@@ -108,12 +108,10 @@ export default function CreatorClient({
               (7-day history barely moves). Sticky on desktop: the table can run to 100 rows, so
               without it the right column would be mostly dead space. The column caps at viewport
               height and scrolls internally — with two cards stacked, a plain sticky would pin the
-              top and leave the analysis card's tail unreachable on short screens.
-              Order is flipped by breakpoint — the column trails the ranks in the desktop grid, but
-              leads on mobile, where a single column would otherwise bury the chart under ~40 rows. */}
+              top and leave the analysis card's tail unreachable on short screens. */}
           {(analysis !== null ||
             (graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0))) && (
-            <div className="order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto space-y-4">
+            <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto space-y-4">
               {graphHistory.length > 0 && Object.values(graphPacksByCountry).some((p) => p.length > 0) && (
                 <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 dark:ring-1 dark:ring-white/10 p-4">
                   <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
