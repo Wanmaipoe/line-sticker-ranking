@@ -691,6 +691,8 @@ export interface GlobalRankedPack {
   author: string | null;
   /** Character key (cat/dog/...), or null when the classifier has not labelled the pack yet. */
   character: string | null;
+  /** Raw scraper type (animation/popup/sound/static/...), for the format badge. */
+  sticker_type: string | null;
   /** Country code -> live rank, or null where the pack is off that country's chart. */
   ranks: Record<string, number | null>;
   /** Mean rank across every featured market, with a missing market counted as UNRANKED_RANK. */
@@ -735,7 +737,7 @@ export async function getGlobalStickerRanking(
           )
           SELECT cur.country AS country, cur.rank AS rank, s.d AS d,
                  p.id AS id, p.name AS name, p.image_url AS image_url, p.author AS author,
-                 p.character_type AS character_type
+                 p.character_type AS character_type, p.sticker_type AS sticker_type
           FROM snap s
           JOIN rankings cur ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
           JOIN products p ON p.id = cur.product_id`,
@@ -760,6 +762,7 @@ export async function getGlobalStickerRanking(
         image_url: (r.image_url as string | null) ?? null,
         author: (r.author as string | null) ?? null,
         character: characterOf(r.character_type as string | null),
+        sticker_type: (r.sticker_type as string | null) ?? null,
         // Every market starts absent; the loop fills in the ones this pack actually charts in.
         ranks: Object.fromEntries(CC.map((c) => [c, null])),
         score: 0,

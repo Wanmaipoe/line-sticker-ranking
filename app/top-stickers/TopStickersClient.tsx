@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { COUNTRY_MAP } from '@/lib/countries';
+import TypeBadge from '@/components/TypeBadge';
 import { UNRANKED_RANK } from '@/lib/ranking';
 import type { GlobalStickerRanking } from '@/lib/db';
 
@@ -165,9 +166,15 @@ export default function TopStickersClient({
                       />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-700 dark:text-gray-200 truncate group-hover:text-green-700 dark:group-hover:text-green-300">
-                        {p.name}
-                      </p>
+                      {/* Same TypeBadge the rank tables use, so a pack reads identically here and
+                          on its own page. Static packs render nothing — only the notable formats
+                          (animated / popup / sound / effect) get a pill. */}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-medium text-gray-700 dark:text-gray-200 truncate group-hover:text-green-700 dark:group-hover:text-green-300">
+                          {p.name}
+                        </span>
+                        <TypeBadge type={p.sticker_type} />
+                      </div>
                       <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                         {p.author ?? 'Unknown creator'}
                       </p>
