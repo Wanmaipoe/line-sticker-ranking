@@ -2,7 +2,7 @@ name: Scrape LINE Sticker Rankings
 
 on:
   schedule:
-    - cron: '28 * * * *'
+    - cron: '29 * * * *'
   workflow_dispatch:
 
 jobs:
