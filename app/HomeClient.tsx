@@ -592,6 +592,12 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
           >
             🐾 Characters
           </a>
+          <a
+            href="/daily-champions"
+            className="flex items-center gap-1.5 px-3 py-2.5 -mb-px text-sm font-medium border-b-2 border-transparent text-gray-600 dark:text-gray-300 hover:border-[#06c755] hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+          >
+            👑 Daily #1
+          </a>
           {revenueLink}
         </div>
       </header>
