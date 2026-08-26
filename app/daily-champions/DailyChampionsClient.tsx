@@ -288,9 +288,13 @@ function DayGroup({
   return (
     <section
       id={`d-${date}`}
-      // Keeps scrolling smooth once all 60 days are expanded on a low-end phone: off-screen day
-      // cards skip layout and paint entirely.
-      className="scroll-mt-4 [content-visibility:auto] [contain-intrinsic-size:auto_300px]"
+      // No content-visibility here, deliberately. `content-visibility: auto` also turns on PAINT
+      // containment, which clips descendants to this box — and the day card (below lg) and each
+      // market panel (from lg) carry a shadow and a 1px ring that sit right on the edge, so they
+      // were being shaved off. Its other half, contain-intrinsic-size, was guessing 300px against
+      // a real ~135px section, which misreports the scroll height across 61 of them. The <details>
+      // fold already keeps the initial render to 14 days, which is where the real win was.
+      className="scroll-mt-4"
     >
       {/* A real heading, not a <p>: it gives the document three stops (Aug/Jul/Jun) under the h1
           across an expanded page ~19,000px tall, matching how every other page here nests h2. */}
@@ -532,7 +536,9 @@ function Stat({
       <p className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">{label}</p>
       <p className="text-lg font-bold text-gray-800 dark:text-gray-100 tabular-nums leading-tight">
         {value}
-        {unit && <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">{unit}</span>}
+        {/* A real space, not just the margin: without it the value and unit concatenate into
+            "35winners" for screen readers and anything reading the text content. */}
+        {unit && <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">{' '}{unit}</span>}
       </p>
       {/* A div, not a truncating <p>: `sub` now carries two block lines (the figures and a link to
           the best-streak pack), and the old white-space:nowrap would have collapsed them onto one. */}
