@@ -80,8 +80,21 @@ function compact(v: number): string {
 
 export default function RevenueClient() {
   const router = useRouter();
-  const { owners, loaded, ownerOf, assign, assignMany, importOwners, addOwner, removeOwner, clearAll } =
-    useOwnerMap();
+  const {
+    owners,
+    map: ownerMapRaw,
+    loaded,
+    ownerOf,
+    assign,
+    assignMany,
+    importOwners,
+    addOwner,
+    removeOwner,
+    clearAll,
+  } = useOwnerMap();
+  /** How many packs currently have an owner — shown on the empty state so a restore is visible
+   *  before any report is loaded. */
+  const ownerCount = Object.keys(ownerMapRaw).length;
   const chart = useChartColors();
 
   const [months, setMonths] = useState<LoadedMonth[]>([]);
@@ -436,6 +449,42 @@ export default function RevenueClient() {
             }}
           />
 
+          {/* Owner import lives out here, not in the Owners card: that card only renders once a
+              report is loaded, and restoring owners is the first thing you want to do after losing
+              a browser profile — before there is anything to attach them to. */}
+          <input
+            ref={ownerFileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importOwnersFromFile(f);
+              e.target.value = ''; // let the same file be re-picked
+            }}
+          />
+
+          {!months.length && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                {ownerCount > 0
+                  ? `${ownerCount} pack${ownerCount === 1 ? '' : 's'} already assigned across ${owners.length} owner${owners.length === 1 ? '' : 's'} in this browser.`
+                  : 'Lost your owner assignments? Restore them from a CSV you exported with "Download with owners".'}
+              </p>
+              <button
+                onClick={() => ownerFileRef.current?.click()}
+                className="mt-2 text-xs bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 px-3 py-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors"
+              >
+                ↥ Import owners
+              </button>
+              {ownerImportMsg && (
+                <p className="text-xs mt-2 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 inline-block">
+                  {ownerImportMsg}
+                </p>
+              )}
+            </div>
+          )}
+
           {months.length > 0 && (
             <div className="flex flex-wrap items-center justify-center gap-1.5 mt-4">
               {months.map((m) => (
@@ -553,17 +602,6 @@ export default function RevenueClient() {
                 >
                   ↥ Import owners
                 </button>
-                <input
-                  ref={ownerFileRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) importOwnersFromFile(f);
-                    e.target.value = ''; // let the same file be re-picked
-                  }}
-                />
               </div>
 
               {ownerImportMsg && (
