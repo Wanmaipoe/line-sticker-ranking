@@ -169,6 +169,72 @@ export function appendOwnerColumn(
   return toCsv(out);
 }
 
+export interface OwnerImport {
+  /** itemId -> owner, deduped and in first-seen order. Only rows that actually name an owner. */
+  pairs: { itemId: string; owner: string; title: string }[];
+  /** Distinct owner names, first-seen order, so the restored roster keeps the file's ordering. */
+  owners: string[];
+  /** Data rows carrying no owner (blank, or the literal 'Unassigned' that the export writes). */
+  skipped: number;
+  /** Item IDs the file gives two different owners. Last one wins; the caller should surface these. */
+  conflicts: string[];
+}
+
+/**
+ * The inverse of appendOwnerColumn: read owner assignments back out of a previously exported
+ * "-with-owners.csv". This is what makes the assignments survive a lost browser profile — they live
+ * in localStorage, so a reinstalled OS or a cleared cache takes them with it, and the exported
+ * report is the only copy left.
+ *
+ * Deliberately lenient about WHICH file it is: it needs an 'Item ID' column and an 'Owner' column
+ * and ignores everything else, so any month's export works, and so do hand-edited sheets where
+ * someone added an Owner column themselves. Rows without a numeric Item ID (LINE's footer lines and
+ * its ~390 blank padding rows) are ignored rather than counted as skipped.
+ */
+export function parseOwnerColumn(rawText: string): OwnerImport {
+  const rows = parseCsvRows(rawText);
+  const headerIdx = rows.findIndex((r) => r.some((c) => c.trim() === 'Item ID'));
+  if (headerIdx === -1) {
+    throw new ReportFormatError('This file has no "Item ID" column, so there is nothing to match owners to.');
+  }
+  const header = rows[headerIdx];
+  const idCol = header.findIndex((h) => h.trim() === 'Item ID');
+  // The LAST 'Owner' column, not the first. appendOwnerColumn always appends, so re-exporting an
+  // already-annotated file leaves two Owner columns and only the rightmost one is current.
+  const ownerCol = header.reduce((best, h, i) => (h.trim() === 'Owner' ? i : best), -1);
+  if (ownerCol === -1) {
+    throw new ReportFormatError(
+      'This file has no "Owner" column. Use a report you exported with "Download with owners".'
+    );
+  }
+  const titleCol = header.findIndex((h) => h.trim() === 'Item Title');
+
+  const byId = new Map<string, { itemId: string; owner: string; title: string }>();
+  const owners: string[] = [];
+  const conflicts: string[] = [];
+  let skipped = 0;
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const itemId = (r[idCol] ?? '').trim();
+    // Only real data rows. LINE's footer ("Creator ID,jQAK...") also has cells in these positions.
+    if (!/^\d+$/.test(itemId)) continue;
+
+    const owner = (r[ownerCol] ?? '').trim();
+    if (!owner || owner === 'Unassigned') {
+      skipped++;
+      continue;
+    }
+
+    const prev = byId.get(itemId);
+    if (prev && prev.owner !== owner) conflicts.push(itemId);
+    byId.set(itemId, { itemId, owner, title: (r[titleCol] ?? '').trim() });
+    if (!owners.includes(owner)) owners.push(owner);
+  }
+
+  return { pairs: [...byId.values()], owners, skipped, conflicts: [...new Set(conflicts)] };
+}
+
 export function parseLineReport(text: string): ParsedReport {
   const rows = parseCsvRows(text);
   const headerIdx = rows.findIndex((r) => r.some((c) => c.trim() === 'Item ID'));

@@ -22,6 +22,7 @@ import {
   allocate,
   combineReports,
   appendOwnerColumn,
+  parseOwnerColumn,
   periodKey,
   periodLabel,
   ReportFormatError,
@@ -79,7 +80,8 @@ function compact(v: number): string {
 
 export default function RevenueClient() {
   const router = useRouter();
-  const { owners, loaded, ownerOf, assign, assignMany, addOwner, removeOwner, clearAll } = useOwnerMap();
+  const { owners, loaded, ownerOf, assign, assignMany, importOwners, addOwner, removeOwner, clearAll } =
+    useOwnerMap();
   const chart = useChartColors();
 
   const [months, setMonths] = useState<LoadedMonth[]>([]);
@@ -95,6 +97,8 @@ export default function RevenueClient() {
   // reassign packs around it.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
+  const ownerFileRef = useRef<HTMLInputElement>(null);
+  const [ownerImportMsg, setOwnerImportMsg] = useState<string | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -316,6 +320,31 @@ export default function RevenueClient() {
     saveCsv(buildExport(), `revenue-split-${report?.period?.from?.replace(/\./g, '') ?? 'export'}.csv`);
   }
 
+  // The counterpart to downloadWithOwners. Owner assignments live only in this browser's
+  // localStorage, so a reinstalled OS or a cleared profile loses them and the exported
+  // "-with-owners.csv" is the only surviving copy. Reading it back restores the roster and every
+  // assignment. Existing assignments always win, so this only fills the gaps.
+  async function importOwnersFromFile(file: File) {
+    setOwnerImportMsg(null);
+    try {
+      const text = await file.text();
+      const { pairs, owners: names, conflicts } = parseOwnerColumn(text);
+      if (!pairs.length) {
+        setOwnerImportMsg('No owners found in that file — every row was blank or "Unassigned".');
+        return;
+      }
+      const { added, kept } = importOwners(pairs, names);
+      const bits = [`Restored ${added} pack${added === 1 ? '' : 's'} across ${names.length} owners`];
+      if (kept) bits.push(`${kept} kept as already assigned here`);
+      if (conflicts.length) bits.push(`${conflicts.length} item ID(s) listed twice in the file`);
+      setOwnerImportMsg(bits.join(' · '));
+    } catch (e) {
+      setOwnerImportMsg(
+        e instanceof ReportFormatError ? e.message : 'Could not read that file as a CSV.'
+      );
+    }
+  }
+
   // Re-download the ORIGINAL uploaded file(s), unchanged except for an 'Owner' column appended to
   // every row. One file when a single month is in view; when "All months" is selected, each loaded
   // month is saved as its own file (staggered so the browser doesn't swallow the later ones).
@@ -508,10 +537,40 @@ export default function RevenueClient() {
 
             {/* Owners roster */}
             <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
-              <h2 className="font-bold text-gray-700 dark:text-gray-200">Owners</h2>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                Saved in this browser, so next month&apos;s upload fills itself in.
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="font-bold text-gray-700 dark:text-gray-200">Owners</h2>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                    Saved in this browser, so next month&apos;s upload fills itself in — and lost if
+                    the browser profile is. Export a copy from &quot;Download with owners&quot;.
+                  </p>
+                </div>
+                {/* Restores the roster from a previously exported "-with-owners.csv". */}
+                <button
+                  onClick={() => ownerFileRef.current?.click()}
+                  title="Restore owners from a CSV you exported with Download with owners"
+                  className="flex-shrink-0 text-xs bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 px-3 py-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors"
+                >
+                  ↥ Import owners
+                </button>
+                <input
+                  ref={ownerFileRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) importOwnersFromFile(f);
+                    e.target.value = ''; // let the same file be re-picked
+                  }}
+                />
+              </div>
+
+              {ownerImportMsg && (
+                <p className="text-xs mt-2 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
+                  {ownerImportMsg}
+                </p>
+              )}
 
               <div className="flex flex-wrap items-center gap-2 mt-3">
                 {owners.map((o) => (

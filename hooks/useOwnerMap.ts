@@ -116,6 +116,49 @@ export function useOwnerMap() {
     });
   }, []);
 
+  /**
+   * Restore assignments from an exported "-with-owners.csv".
+   *
+   * Fills only item IDs that have NO owner yet — an assignment already in this browser always wins,
+   * so importing can never silently overwrite a correction made since the export, and re-importing
+   * the same file twice is a no-op. Returns what happened so the caller can report it rather than
+   * leaving the user guessing whether anything landed.
+   */
+  const importOwners = useCallback(
+    (pairs: { itemId: string; owner: string }[], rosterNames: string[] = []) => {
+      let added = 0;
+      let kept = 0;
+      setState((prev) => {
+        const map = { ...prev.map };
+        const owners = [...prev.owners];
+        for (const { itemId, owner } of pairs) {
+          const name = owner.trim();
+          if (!name) continue;
+          if (map[itemId]) {
+            // Already assigned here. Count it as a conflict only if the file disagrees.
+            if (map[itemId] !== name) kept++;
+            continue;
+          }
+          map[itemId] = name;
+          added++;
+          if (!owners.includes(name)) owners.push(name);
+        }
+        // Names on the roster but owning nothing yet still belong on it.
+        for (const n of rosterNames) {
+          const name = n.trim();
+          if (name && !owners.includes(name)) owners.push(name);
+        }
+        const next = { owners, map };
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      return { added, kept };
+    },
+    []
+  );
+
   const clearAll = useCallback(() => persist(EMPTY), [persist]);
 
   const ownerOf = useCallback((itemId: string) => state.map[itemId] ?? null, [state.map]);
@@ -127,6 +170,7 @@ export function useOwnerMap() {
     ownerOf,
     assign,
     assignMany,
+    importOwners,
     addOwner,
     removeOwner,
     clearAll,
