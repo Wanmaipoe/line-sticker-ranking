@@ -722,26 +722,66 @@ export interface GlobalStickerRanking {
  * that travel" block needs. Computing both here costs ~1500 rows once instead of the ~3000 that
  * calling getMarketInsights() alongside this would spend on the same snapshot.
  */
+/**
+ * Oldest and newest day the rankings table holds across the featured markets — the bounds for the
+ * date picker on /top-stickers.
+ *
+ * Deliberately one MIN/MAX query PER COUNTRY rather than a single `country IN (...)`: SQLite applies
+ * its MIN/MAX index optimisation only to a simple equality, so the IN form degrades into a scan of a
+ * ~3M-row table while three seeks on idx_rankings_country_date_hour read a handful of rows.
+ */
+export async function getRankingDateRange(client: Client): Promise<{ first: string; last: string } | null> {
+  let first: string | null = null;
+  let last: string | null = null;
+  for (const cc of FEATURED_COUNTRIES) {
+    const r = await client.execute({
+      sql: 'SELECT MIN(snapshot_date) AS lo, MAX(snapshot_date) AS hi FROM rankings WHERE country = ?',
+      args: [cc],
+    });
+    const lo = (r.rows[0]?.lo as string | null) ?? null;
+    const hi = (r.rows[0]?.hi as string | null) ?? null;
+    if (lo && (!first || lo < first)) first = lo;
+    if (hi && (!last || hi > last)) last = hi;
+  }
+  return first && last ? { first, last } : null;
+}
+
 export async function getGlobalStickerRanking(
   client: Client,
-  limit = 100
+  limit = 100,
+  /**
+   * A past day as YYYY-MM-DD to rank as of that date instead of now. Omit (or null) for the newest
+   * snapshot. A market with no rows on that date simply has no rank there, exactly as if the pack
+   * had not charted — no special casing needed downstream.
+   */
+  date?: string | null
 ): Promise<GlobalStickerRanking> {
   const CC = FEATURED_COUNTRIES;
   const ccUnion = CC.map((_, i) => (i === 0 ? 'SELECT ? AS country' : 'UNION ALL SELECT ?')).join(' ');
-  const result = await client.execute({
-    sql: `WITH snap AS (
-            SELECT c.country AS country,
+  // Two shapes of one query. Without a date: each market's newest snapshot. With a date: that
+  // market's LAST hour on that day — the day's closing standing, and the only hour guaranteed to
+  // exist on a day the scraper covered partially. Both are seeks on idx_rankings_country_date_hour
+  // (verified with EXPLAIN QUERY PLAN), so a historical view costs what today's view costs: ~500
+  // index rows per market plus a primary-key seek per distinct pack.
+  const snapSql = date
+    ? `SELECT c.country AS country, ? AS d,
+              (SELECT MAX(snapshot_hour) FROM rankings WHERE country = c.country AND snapshot_date = ?) AS h
+       FROM (${ccUnion}) AS c`
+    : `SELECT c.country AS country,
               (SELECT snapshot_date FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS d,
               (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS h
-            FROM (${ccUnion}) AS c
-          )
+       FROM (${ccUnion}) AS c`;
+  const result = await client.execute({
+    sql: `WITH snap AS (${snapSql})
           SELECT cur.country AS country, cur.rank AS rank, s.d AS d,
                  p.id AS id, p.name AS name, p.image_url AS image_url, p.author AS author,
                  p.character_type AS character_type, p.sticker_type AS sticker_type
           FROM snap s
           JOIN rankings cur ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
           JOIN products p ON p.id = cur.product_id`,
-    args: [...CC],
+    // Positional: the CTE opens the statement, so its two date placeholders precede the country
+    // list that fills ccUnion.
+    args: date ? [date, date, ...CC] : [...CC],
   });
 
   const packs = new Map<string, GlobalRankedPack>();

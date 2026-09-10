@@ -1,4 +1,9 @@
-import { getDb, getGlobalStickerRanking, type GlobalStickerRanking } from '@/lib/db';
+import {
+  getDb,
+  getGlobalStickerRanking,
+  getRankingDateRange,
+  type GlobalStickerRanking,
+} from '@/lib/db';
 import TopStickersClient from './TopStickersClient';
 import BackButton from '@/components/BackButton';
 import JsonLd from '@/components/JsonLd';
@@ -44,8 +49,14 @@ export default async function TopStickersPage() {
     totalPacks: 0,
     characterTravel: [],
   };
+  // Bounds for the date picker. Null means "no picker" — the control is a convenience, so it has to
+  // degrade quietly rather than take the page down with it.
+  let dateRange: { first: string; last: string } | null = null;
   try {
     data = await getGlobalStickerRanking(getDb(), TOP_N);
+    // Same try/catch on purpose: three index seeks that must never turn a working leaderboard into a
+    // 500. Sequential rather than Promise.all so a failure here still leaves the ranking above it.
+    dateRange = await getRankingDateRange(getDb());
   } catch {
     // DB unreadable (e.g. Turso read quota) — render the shell (HTTP 200), not a 500.
   }
@@ -89,7 +100,7 @@ export default async function TopStickersPage() {
           </p>
         </div>
 
-        <TopStickersClient initial={data} topN={TOP_N} />
+        <TopStickersClient initial={data} topN={TOP_N} dateRange={dateRange} />
 
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
           Updated hourly from store.line.me · single-market charts on the{' '}
