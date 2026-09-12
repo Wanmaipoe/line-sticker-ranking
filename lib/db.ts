@@ -723,20 +723,35 @@ export interface GlobalStickerRanking {
  * calling getMarketInsights() alongside this would spend on the same snapshot.
  */
 /**
- * Oldest and newest day the rankings table holds across the featured markets — the bounds for the
- * date picker on /top-stickers.
+ * Oldest and newest day the rankings table holds — the bounds for a date picker.
  *
- * Deliberately one MIN/MAX query PER COUNTRY rather than a single `country IN (...)`: SQLite applies
- * its MIN/MAX index optimisation only to a simple equality, so the IN form degrades into a scan of a
- * ~3M-row table while three seeks on idx_rankings_country_date_hour read a handful of rows.
+ * With `country` it is that one market's range, for /country/<code>; without, the union across the
+ * featured markets, for /top-stickers.
+ *
+ * Two things matter here, and both are about rows read rather than wall time:
+ *  - one query PER COUNTRY, never `country IN (...)`: the min/max index optimisation needs a simple
+ *    equality, and the IN form degrades into a scan of the ~3M-row table;
+ *  - and inside each query, ONE aggregate per scalar subquery — see the comment on the statement. One
+ * country is therefore one seek, not a third of the work.
  */
-export async function getRankingDateRange(client: Client): Promise<{ first: string; last: string } | null> {
+export async function getRankingDateRange(
+  client: Client,
+  country?: string
+): Promise<{ first: string; last: string } | null> {
+  const markets: readonly string[] = country ? [country] : FEATURED_COUNTRIES;
   let first: string | null = null;
   let last: string | null = null;
-  for (const cc of FEATURED_COUNTRIES) {
+  for (const cc of markets) {
+    // TWO scalar subqueries, not `SELECT MIN(...), MAX(...)` in one statement. SQLite applies its
+    // min/max index optimisation only to a query with exactly ONE aggregate; with two it silently
+    // walks the whole country=? range instead. Measured on production: the single-statement form
+    // reads 903,991 rows, this reads 2. EXPLAIN QUERY PLAN prints
+    // "SEARCH ... USING COVERING INDEX" for BOTH, which is exactly why the scan went unnoticed —
+    // only rows_read tells them apart.
     const r = await client.execute({
-      sql: 'SELECT MIN(snapshot_date) AS lo, MAX(snapshot_date) AS hi FROM rankings WHERE country = ?',
-      args: [cc],
+      sql: `SELECT (SELECT MIN(snapshot_date) FROM rankings WHERE country = ?) AS lo,
+                   (SELECT MAX(snapshot_date) FROM rankings WHERE country = ?) AS hi`,
+      args: [cc, cc],
     });
     const lo = (r.rows[0]?.lo as string | null) ?? null;
     const hi = (r.rows[0]?.hi as string | null) ?? null;

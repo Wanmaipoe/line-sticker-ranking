@@ -1,23 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getDb, getGlobalStickerRanking } from '@/lib/db';
+import { ARCHIVED_DAY_CACHE_CONTROL, isArchivedDay, validDate } from '@/lib/day';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const EMPTY = { asOf: null, countries: [], packs: [], totalPacks: 0, characterTravel: [] };
-
-/** Strict YYYY-MM-DD that is also a real calendar day (rejects 2026-02-30, 2026-13-01, …). */
-function validDate(v: string | null): string | null {
-  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
-  const [y, m, d] = v.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? v : null;
-}
-
-/** Today in Bangkok — the clock the site presents everywhere else. */
-function todayBangkok(): string {
-  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
-}
 
 // Combined ranking for /top-stickers: the Refresh button (no params) and the date picker (?date=).
 //
@@ -41,8 +29,8 @@ export async function GET(req: Request) {
     const data = await getGlobalStickerRanking(getDb(), 100, date);
     const res = NextResponse.json({ data });
     // Only a day strictly in the past is immutable; "today" is still being written to hourly.
-    if (date && date < todayBangkok()) {
-      res.headers.set('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
+    if (isArchivedDay(date)) {
+      res.headers.set('Cache-Control', ARCHIVED_DAY_CACHE_CONTROL);
     }
     return res;
   } catch {

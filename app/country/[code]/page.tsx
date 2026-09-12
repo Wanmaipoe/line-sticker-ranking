@@ -1,4 +1,4 @@
-import { getDb } from '@/lib/db';
+import { getDb, getRankingDateRange } from '@/lib/db';
 import { COUNTRY_MAP, isFeaturedCountry } from '@/lib/countries';
 import CountryClient from './CountryClient';
 import JsonLd from '@/components/JsonLd';
@@ -57,6 +57,9 @@ export default async function CountryPage({ params }: Props) {
   let latestDate: string | null = null;
   let latestHour: number | null = null;
   let items: { rank: number; id: string; name: string; image_url: string | null; author: string | null; sticker_type: string | null }[] = [];
+  // Bounds for the date picker. Null means "no picker" — the control is a convenience, so it has to
+  // degrade quietly rather than take the page down with it.
+  let dateRange: { first: string; last: string } | null = null;
 
   try {
     const dateRes = await client.execute({
@@ -85,6 +88,10 @@ export default async function CountryPage({ params }: Props) {
         sticker_type: row.sticker_type as string | null,
       }));
     }
+
+    // One MIN/MAX index seek for this market. Inside the same try/catch on purpose, and sequential
+    // rather than Promise.all, so a failure here still leaves the ranking above it on screen.
+    dateRange = await getRankingDateRange(client, cc);
   } catch {
     // DB unreadable (e.g. Turso read quota) — render the country shell with no items (HTTP 200).
   }
@@ -129,6 +136,7 @@ export default async function CountryPage({ params }: Props) {
         flag={info?.flag ?? '🌏'}
         date={latestDate}
         items={items}
+        dateRange={dateRange}
       />
     </>
   );
