@@ -37,8 +37,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const client = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
 
+// Exactly `author IS NULL` — the predicate of idx_products_author_missing (scripts/add-author-index.mjs).
+// This script runs every hour. It used to be `author IS NULL OR TRIM(author) = ''`, which no index can
+// serve, so each run scanned all ~34k products (33,944 rows). Any extra OR branch, even a harmless-
+// looking `OR author = ''`, makes SQLite merge two index lookups and sort instead of walking this
+// partial index and stopping at BATCH. Blank authors are folded into NULL by the migration and the
+// scraper only ever writes `author || null`, so this single predicate is the complete queue.
+// INDEXED BY because SQLite will not pick the partial index unprompted (no table statistics): left
+// to itself it reads 5,923 rows via idx_products_author and sorts. Named, it reads BATCH rows.
 const rows = (await client.execute({
-  sql: `SELECT id FROM products WHERE author IS NULL OR TRIM(author) = '' ORDER BY updated_at DESC LIMIT ?`,
+  sql: `SELECT id FROM products INDEXED BY idx_products_author_missing
+        WHERE author IS NULL ORDER BY updated_at DESC LIMIT ?`,
   args: [BATCH],
 })).rows;
 

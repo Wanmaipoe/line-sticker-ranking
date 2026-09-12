@@ -166,12 +166,16 @@ export async function getMarketInsights(client: Client): Promise<MarketInsights>
       const target = new Date(`${d}T00:00:00Z`);
       target.setUTCDate(target.getUTCDate() - days);
       const td = target.toISOString().slice(0, 10);
-      // Newest snapshot at or before the target moment — an index seek, not a scan.
+      // Newest snapshot at or before the target moment. A ROW-VALUE comparison, not
+      // `snapshot_date < ? OR (snapshot_date = ? AND snapshot_hour <= ?)`: the OR splits the range in
+      // two, SQLite cannot fold that into one index range, and the old form read ~48,000 rows per call
+      // according to Turso's Top Queries — 288k per render — while its comment claimed a seek.
+      // `(date, hour) <= (?, ?)` is a single range on idx_rankings_country_date_hour.
       const snap = await client.execute({
         sql: `SELECT snapshot_date, snapshot_hour FROM rankings
-              WHERE country = ? AND (snapshot_date < ? OR (snapshot_date = ? AND snapshot_hour <= ?))
+              WHERE country = ? AND (snapshot_date, snapshot_hour) <= (?, ?)
               ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1`,
-        args: [cc, td, td, h],
+        args: [cc, td, h],
       });
       const s = snap.rows[0];
       if (!s) continue;
