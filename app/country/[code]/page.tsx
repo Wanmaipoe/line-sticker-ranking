@@ -62,9 +62,14 @@ export default async function CountryPage({ params }: Props) {
   let dateRange: { first: string; last: string } | null = null;
 
   try {
+    // Ordered seek, NOT `SELECT MAX(snapshot_date), MAX(snapshot_hour) ... WHERE snapshot_date =
+    // (SELECT MAX(...))`. Two aggregates in one statement disable SQLite's min/max index
+    // optimisation, so that form walked every row of the newest day: 7,002 rows read to learn one
+    // date and hour. This reads 1. Same trick as getGlobalStickerRanking's snapshot CTE.
     const dateRes = await client.execute({
-      sql: `SELECT MAX(snapshot_date) AS latest, MAX(snapshot_hour) AS latest_hour FROM rankings WHERE country = ? AND snapshot_date = (SELECT MAX(snapshot_date) FROM rankings WHERE country = ?)`,
-      args: [cc, cc],
+      sql: `SELECT snapshot_date AS latest, snapshot_hour AS latest_hour FROM rankings
+            WHERE country = ? ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1`,
+      args: [cc],
     });
     latestDate = dateRes.rows[0]?.latest as string | null;
     latestHour = dateRes.rows[0]?.latest_hour as number | null;

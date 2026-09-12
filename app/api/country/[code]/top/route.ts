@@ -35,9 +35,14 @@ export async function GET(
         sql: `SELECT MAX(snapshot_hour) AS latest_hour FROM rankings WHERE country = ? AND snapshot_date = ?`,
         args: [cc, date],
       })
-    : await client.execute({
-        sql: `SELECT MAX(snapshot_date) AS latest, MAX(snapshot_hour) AS latest_hour FROM rankings WHERE country = ? AND snapshot_date = (SELECT MAX(snapshot_date) FROM rankings WHERE country = ?)`,
-        args: [cc, cc],
+    : // Ordered seek, NOT `SELECT MAX(snapshot_date), MAX(snapshot_hour) ... WHERE snapshot_date =
+      // (SELECT MAX(...))`. Two aggregates in one statement disable SQLite's min/max index
+      // optimisation, so that form walked every row of the newest day: 7,002 rows read to learn one
+      // date and hour. This reads 1. Same trick as getGlobalStickerRanking's snapshot CTE.
+      await client.execute({
+        sql: `SELECT snapshot_date AS latest, snapshot_hour AS latest_hour FROM rankings
+              WHERE country = ? ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1`,
+        args: [cc],
       });
   const latestHour = dateRes.rows[0]?.latest_hour as number | null;
   // A requested day with no rows has no hour either, so `date` alone is not proof the day exists —
