@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { COUNTRY_MAP } from '@/lib/countries';
 
 const COLUMN_HINTS: Record<string, string> = {
@@ -15,6 +15,7 @@ interface RankRow {
   current_rank: number;
   snapshot_date: string;
   snapshot_hour: number;
+  snapshot_minute?: number; // real capture minute, from created_at (see minuteOf in lib/db.ts)
   rank_24h_ago: number | null;
   best_30d: number | null;
   is_current: boolean;
@@ -36,9 +37,33 @@ function delta(current: number, prev: number | null) {
   return <span className="text-gray-400 dark:text-gray-500">—</span>;
 }
 
-function freshnessLabel(date: string, hour: number) {
-  const snap = new Date(`${date}T${String(hour).padStart(2, '0')}:30:00Z`);
-  const diffMin = Math.round((Date.now() - snap.getTime()) / 60000);
+const MINUTE_MS = 60_000;
+
+// Freshness depends on the clock, and this table is server-rendered into ISR HTML that is served for
+// 30 minutes or more — so a label computed on the server disagrees with the one the browser computes
+// while hydrating (React #418, seen on production). The server snapshot is null, so SSR and the
+// hydration pass render a blank cell; React then re-renders with the browser's clock. The clock is
+// whole minutes since the epoch, a primitive, so React only re-renders when the minute actually turns.
+function subscribeClock(onTick: () => void) {
+  const id = setInterval(onTick, 15_000);
+  return () => clearInterval(id);
+}
+function getNowMinute(): number | null {
+  return Math.floor(Date.now() / MINUTE_MS);
+}
+function getServerNowMinute(): number | null {
+  return null;
+}
+
+// From the snapshot's real capture minute. This used to assume every snapshot lands at :30, but a
+// quarter of them don't (anywhere from :00 to :57), so right after an early capture the label went
+// negative ("-5m ago") and was otherwise up to half an hour off.
+function freshnessLabel(row: RankRow, nowMinute: number) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const captured = Date.parse(`${row.snapshot_date}T${pad(row.snapshot_hour)}:${pad(row.snapshot_minute ?? 0)}:00Z`);
+  const diffMin = nowMinute - captured / MINUTE_MS;
+  if (!Number.isFinite(diffMin)) return '';
+  if (diffMin < 1) return 'just now'; // also absorbs a viewer's clock running slightly behind the scraper's
   if (diffMin < 60) return `${diffMin}m ago`;
   const h = Math.floor(diffMin / 60);
   if (h < 24) return `${h}h ago`;
@@ -72,6 +97,7 @@ function TooltipTh({ colKey, label, className }: { colKey: string; label: string
 }
 
 export default function GlobalRankTable({ rows, selectedCountry, onSelectCountry }: Props) {
+  const nowMinute = useSyncExternalStore(subscribeClock, getNowMinute, getServerNowMinute);
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
       <table className="w-full text-sm">
@@ -128,7 +154,7 @@ export default function GlobalRankTable({ rows, selectedCountry, onSelectCountry
                   {row.best_30d != null ? `#${row.best_30d}` : '—'}
                 </td>
                 <td className="text-center px-3 py-3 text-gray-400 dark:text-gray-500 text-xs">
-                  {freshnessLabel(row.snapshot_date, row.snapshot_hour)}
+                  {nowMinute === null ? ' ' : freshnessLabel(row, nowMinute)}
                 </td>
                 <td className="px-3 py-3 text-right text-xs text-green-500 dark:text-green-400">
                   {isSelected ? '▶ Graph' : 'View →'}
