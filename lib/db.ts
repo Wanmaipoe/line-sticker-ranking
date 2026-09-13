@@ -152,72 +152,67 @@ function minuteOf(createdAt: string | null): number {
   return Number.isFinite(m) ? m : 0;
 }
 
+// One row per featured market the pack has EVER charted in (JP > TH > TW): its newest rank, the rank
+// at least 24h before now, its best rank of the last 30 days, and whether that newest rank is from the
+// market's current snapshot. Serves every /sticker/[id] render, the Refresh button and the alerts cron.
+//
+// Everything hangs off the primary key (product_id, country, snapshot_date, snapshot_hour), per market:
+//  - newest and 24h-ago are backward seeks that stop at the first matching row. The 24h cutoff is a
+//    row-value compare on the plain columns; it selects exactly what the old
+//    `datetime(date || 'T' || hh || ':00:00') <= datetime('now', '-24 hours')` did (a snapshot is always
+//    at minute 0), but the index can start from it instead of testing every row;
+//  - best-30d walks only the last 30 days of this pack in this market (at most ~720 hourly rows).
+// The previous version grouped by product_id alone and joined its CTEs back on a
+// `snapshot_date || printf(hour)` string, which no index can match, so every render re-read the pack's
+// whole retained history about six times — retired id/us rows included, only to drop them in JS.
+// Measured on production over 18 packs, identical output: 17622207 18,451 -> 1,097 rows, the JP #1
+// 34,475 -> 2,065. (A pack that never charted costs 4 instead of 1: the three market probes.)
 export async function getLatestRankingsForProduct(client: Client, productId: string) {
   const result = await client.execute({
-    sql: `WITH latest AS (
-      SELECT country, MAX(snapshot_date || printf('%02d', snapshot_hour)) AS latest_key
-      FROM rankings
-      WHERE product_id = ?
-      GROUP BY country
-    ),
-    prev24h AS (
-      SELECT country, MAX(snapshot_date || printf('%02d', snapshot_hour)) AS prev_key
-      FROM rankings
-      WHERE product_id = ?
-        AND datetime(snapshot_date || 'T' || printf('%02d', snapshot_hour) || ':00:00')
-            <= datetime('now', '-24 hours')
-      GROUP BY country
-    ),
-    best30 AS (
-      SELECT country, MIN(rank) AS best_rank
-      FROM rankings
-      WHERE product_id = ?
-        AND snapshot_date >= date('now', '-30 days')
-      GROUP BY country
+    sql: `WITH picks AS (
+      SELECT c.key AS ord, c.value AS country,
+        (SELECT rowid FROM rankings
+          WHERE product_id = ? AND country = c.value
+          ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS cur_id,
+        (SELECT rowid FROM rankings
+          WHERE product_id = ? AND country = c.value
+            AND (snapshot_date, snapshot_hour) <=
+                (date('now', '-24 hours'), CAST(strftime('%H', 'now', '-24 hours') AS INTEGER))
+          ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS prev_id,
+        (SELECT MIN(rank) FROM rankings
+          WHERE product_id = ? AND country = c.value AND snapshot_date >= date('now', '-30 days')) AS best_30d,
+        -- the market's newest snapshot, seeking idx_rankings_country_date_hour (1 row)
+        (SELECT snapshot_date || printf('%02d', snapshot_hour) FROM rankings
+          WHERE country = c.value ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS market_key
+      FROM json_each(?) c
     )
     SELECT
-      r.country,
+      p.country,
       r.rank AS current_rank,
       r.snapshot_date,
       r.snapshot_hour,
       r.created_at,
-      r2.rank AS rank_24h_ago,
-      b.best_rank AS best_30d,
-      -- is this rank from the country's CURRENT snapshot? Compare the product's latest key for
-      -- this country against the country's overall latest, fetched per-country via the index
-      -- (ORDER BY ... LIMIT 1 → ~1 row) instead of a whole-table MAX-over-concat scan.
-      CASE WHEN l.latest_key = (
-             SELECT rc.snapshot_date || printf('%02d', rc.snapshot_hour)
-             FROM rankings rc
-             WHERE rc.country = l.country
-             ORDER BY rc.snapshot_date DESC, rc.snapshot_hour DESC
-             LIMIT 1
-           ) THEN 1 ELSE 0 END AS is_current
-    FROM latest l
-    JOIN rankings r ON r.product_id = ? AND r.country = l.country
-      AND (r.snapshot_date || printf('%02d', r.snapshot_hour)) = l.latest_key
-    LEFT JOIN prev24h p ON p.country = l.country
-    LEFT JOIN rankings r2 ON r2.product_id = ? AND r2.country = p.country
-      AND (r2.snapshot_date || printf('%02d', r2.snapshot_hour)) = p.prev_key
-    LEFT JOIN best30 b ON b.country = l.country
-    ORDER BY r.rank ASC`,
-    args: [productId, productId, productId, productId, productId],
+      prev.rank AS rank_24h_ago,
+      p.best_30d,
+      CASE WHEN r.snapshot_date || printf('%02d', r.snapshot_hour) = p.market_key THEN 1 ELSE 0 END AS is_current
+    FROM picks p
+    JOIN rankings r ON r.rowid = p.cur_id               -- markets the pack never charted in drop out here
+    LEFT JOIN rankings prev ON prev.rowid = p.prev_id
+    ORDER BY p.ord`,
+    args: [productId, productId, productId, JSON.stringify(FEATURED_COUNTRIES)],
   });
-  return result.rows
-    .map((row) => ({
-      country: row.country as string,
-      current_rank: row.current_rank as number,
-      snapshot_date: row.snapshot_date as string,
-      snapshot_hour: row.snapshot_hour as number,
-      // Real capture minute (the scrape runs near :30, not exactly on the hour). Sent so the chart
-      // labels this point at the true time and matches the history rows around it.
-      snapshot_minute: minuteOf(row.created_at as string | null),
-      rank_24h_ago: row.rank_24h_ago as number | null,
-      best_30d: row.best_30d as number | null,
-      is_current: (row.is_current as number) === 1, // is this rank from the country's latest snapshot?
-    }))
-    .filter((r) => r.country in COUNTRY_ORDER) // featured markets only
-    .sort((a, b) => COUNTRY_ORDER[a.country] - COUNTRY_ORDER[b.country]); // JP > TH > TW > ID > US
+  return result.rows.map((row) => ({
+    country: row.country as string,
+    current_rank: row.current_rank as number,
+    snapshot_date: row.snapshot_date as string,
+    snapshot_hour: row.snapshot_hour as number,
+    // Real capture minute (the scrape runs near :30, not exactly on the hour). Sent so the chart
+    // labels this point at the true time and matches the history rows around it.
+    snapshot_minute: minuteOf(row.created_at as string | null),
+    rank_24h_ago: row.rank_24h_ago as number | null,
+    best_30d: row.best_30d as number | null,
+    is_current: (row.is_current as number) === 1, // is this rank from the country's latest snapshot?
+  }));
 }
 
 export interface LeaderboardSlot {
