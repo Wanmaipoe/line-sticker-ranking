@@ -77,9 +77,10 @@ function CalendarPopover({
     return { y, m0: m - 1 };
   });
 
-  // Bangkok's calendar day, the clock the rest of the site presents (see todayBangkok() in
-  // lib/day.ts). Safe to read the wall clock here because this component only ever mounts from a
-  // click, so it never renders on the server and cannot mismatch on hydration.
+  // Bangkok's calendar day, the clock the site presents to visitors — only for the "today" ring. Which
+  // days are selectable comes from `range` (UTC snapshot days). Safe to read the wall clock here
+  // because this component only ever mounts from a click, so it never renders on the server and
+  // cannot mismatch on hydration.
   // eslint-disable-next-line react-hooks/purity
   const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 

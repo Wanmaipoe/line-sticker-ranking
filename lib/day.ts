@@ -13,18 +13,26 @@ export function validDate(v: string | null): string | null {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? v : null;
 }
 
-/** Today in Bangkok — the clock the site presents everywhere else. */
-export function todayBangkok(): string {
-  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
-}
-
 /**
  * A day that can never change again is safe to cache at the CDN for a week; today's snapshot is
  * still being written to hourly, so it must always reach the database.
  */
 export const ARCHIVED_DAY_CACHE_CONTROL = 'public, s-maxage=604800, stale-while-revalidate=86400';
 
-/** True when `date` is a real day strictly before today in Bangkok — i.e. immutable. */
+// How long after UTC midnight the previous day can still receive rows. The scraper stamps a whole
+// run with the UTC date it STARTED on, so a run that starts at 23:5x keeps writing that day for a
+// few minutes past midnight. Two hours is far longer than any run; the only cost is that yesterday
+// goes uncached until 02:00 UTC.
+const LAST_WRITE_GRACE_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * True when `date` can no longer change, so its ranking is safe to cache for a week.
+ *
+ * snapshot_date is a UTC day (scripts/scrape-line-official.mjs stamps rows with
+ * `now.toISOString().slice(0, 10)`), so "finished" must be judged in UTC. This used to compare
+ * against today in Bangkok, which is a day ahead from 17:00 UTC: the day still being scraped counted
+ * as archived, and whoever picked it before 00:00 UTC froze its partial ranking in the CDN for a week.
+ */
 export function isArchivedDay(date: string | null): boolean {
-  return date !== null && date < todayBangkok();
+  return date !== null && date < new Date(Date.now() - LAST_WRITE_GRACE_MS).toISOString().slice(0, 10);
 }
