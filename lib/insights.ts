@@ -123,6 +123,9 @@ export async function getMarketInsights(client: Client): Promise<MarketInsights>
   const CC: string[] = [...FEATURED_COUNTRIES];
 
   // ── current snapshot across all markets, one pass ────────────────────────
+  // r.snapshot_date / r.snapshot_hour, not the snap CTE's s.d / s.h: projecting a flattened CTE's
+  // correlated-subquery columns re-runs both subqueries for every output row (see
+  // getGlobalStickerRanking in lib/db.ts). Measured, identical rows: 6,009 -> 3,009 rows read.
   const cur = await client.execute({
     sql: `WITH snap AS (
             SELECT c.country AS country,
@@ -130,7 +133,7 @@ export async function getMarketInsights(client: Client): Promise<MarketInsights>
               (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS h
             FROM (${ccUnionSql(CC.length)}) AS c
           )
-          SELECT r.country, r.rank, s.d AS snapshot_date, s.h AS snapshot_hour,
+          SELECT r.country, r.rank, r.snapshot_date, r.snapshot_hour,
                  p.id, p.name, p.author, p.sticker_type, p.character_type, p.price
           FROM snap s
           JOIN rankings r ON r.country = s.country AND r.snapshot_date = s.d AND r.snapshot_hour = s.h

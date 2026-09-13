@@ -398,11 +398,10 @@ export async function getCategoryRankings(
           )
           SELECT cur.country AS country, cur.rank AS rank, p.id AS id, p.name AS name,
                  p.image_url AS image_url, p.author AS author, p.sticker_type AS sticker_type,
-                 s.d AS d, s.h AS h
+                 cur.snapshot_date AS d, cur.snapshot_hour AS h
           FROM snap s
           JOIN rankings cur ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
-          JOIN products p ON p.id = cur.product_id
-          ORDER BY cur.country, cur.rank ASC`,
+          JOIN products p ON p.id = cur.product_id`,
     args: [...countries],
   });
 
@@ -410,7 +409,13 @@ export async function getCategoryRankings(
   for (const cc of countries) {
     perCountry.set(cc, { country: cc, date: null, hour: null, byCategory: {}, counts: {} });
   }
-  for (const r of result.rows) {
+  // Rows arrive in no particular order: there is deliberately no ORDER BY. A SQL sort over the joined
+  // snapshot is a temp B-tree whose read-back counts as another 1,500 rows read; sorting 1,500 rows
+  // here is free. Only rank order within a country matters (the per-list cap below keeps the best).
+  // Together with projecting cur.snapshot_date/cur.snapshot_hour instead of the snap CTE's s.d/s.h
+  // (see getGlobalStickerRanking), measured on production with identical rows: 7,509 -> 3,009.
+  const rows = [...result.rows].sort((a, b) => (a.rank as number) - (b.rank as number));
+  for (const r of rows) {
     const data = perCountry.get(r.country as string);
     if (!data) continue;
     data.date = (r.d as string | null) ?? data.date;
@@ -479,11 +484,10 @@ export async function getCharacterRankings(
           SELECT cur.country AS country, cur.rank AS rank, p.id AS id, p.name AS name,
                  p.image_url AS image_url, p.author AS author,
                  p.character_type AS character_type, p.character_source AS character_source,
-                 s.d AS d, s.h AS h
+                 cur.snapshot_date AS d, cur.snapshot_hour AS h
           FROM snap s
           JOIN rankings cur ON cur.country = s.country AND cur.snapshot_date = s.d AND cur.snapshot_hour = s.h
-          JOIN products p ON p.id = cur.product_id
-          ORDER BY cur.country, cur.rank ASC`,
+          JOIN products p ON p.id = cur.product_id`,
     args: [...countries],
   });
 
@@ -491,7 +495,13 @@ export async function getCharacterRankings(
   for (const cc of countries) {
     perCountry.set(cc, { country: cc, date: null, hour: null, byCharacter: {}, counts: {} });
   }
-  for (const r of result.rows) {
+  // Same as getCategoryRankings. Rows arrive in no particular order: there is deliberately no ORDER BY. A SQL sort over the joined
+  // snapshot is a temp B-tree whose read-back counts as another 1,500 rows read; sorting 1,500 rows
+  // here is free. Only rank order within a country matters (the per-list cap below keeps the best).
+  // Together with projecting cur.snapshot_date/cur.snapshot_hour instead of the snap CTE's s.d/s.h
+  // (see getGlobalStickerRanking), measured on production with identical rows: 7,509 -> 3,009.
+  const rows = [...result.rows].sort((a, b) => (a.rank as number) - (b.rank as number));
+  for (const r of rows) {
     const data = perCountry.get(r.country as string);
     if (!data) continue;
     data.date = (r.d as string | null) ?? data.date;
@@ -781,9 +791,13 @@ export async function getGlobalStickerRanking(
               (SELECT snapshot_date FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS d,
               (SELECT snapshot_hour FROM rankings WHERE country = c.country ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS h
        FROM (${ccUnion}) AS c`;
+  // `cur.snapshot_date`, never `s.d`, in the SELECT list. SQLite flattens the snap CTE into the join,
+  // so projecting one of its correlated-subquery columns re-runs that subquery for EVERY output
+  // row: 1,500 extra seeks. The join already pins cur.snapshot_date = s.d, so the value is identical.
+  // Measured on production, same rows in the same order: 4,509 -> 3,009 rows read.
   const result = await client.execute({
     sql: `WITH snap AS (${snapSql})
-          SELECT cur.country AS country, cur.rank AS rank, s.d AS d,
+          SELECT cur.country AS country, cur.rank AS rank, cur.snapshot_date AS d,
                  p.id AS id, p.name AS name, p.image_url AS image_url, p.author AS author,
                  p.character_type AS character_type, p.sticker_type AS sticker_type
           FROM snap s
