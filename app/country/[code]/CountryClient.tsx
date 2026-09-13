@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
+import HoverPrefetchLink from '@/components/HoverPrefetchLink';
 import { useRouter } from 'next/navigation';
 import { useFavorites } from '@/hooks/useFavorites';
 import TypeBadge from '@/components/TypeBadge';
@@ -201,7 +201,7 @@ export default function CountryClient({
                 >
                   #{item.rank}
                 </span>
-                <Link
+                <HoverPrefetchLink
                   href={`/sticker/${item.id}`}
                   onClick={(e) => e.stopPropagation()}
                   className="w-10 h-10 rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 block"
@@ -219,26 +219,26 @@ export default function CountryClient({
                       (e.target as HTMLImageElement).style.visibility = 'hidden';
                     }}
                   />
-                </Link>
+                </HoverPrefetchLink>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <Link
+                    <HoverPrefetchLink
                       href={`/sticker/${item.id}`}
                       onClick={(e) => e.stopPropagation()}
                       className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate group-hover:text-green-700 dark:group-hover:text-green-300"
                     >
                       {item.name}
-                    </Link>
+                    </HoverPrefetchLink>
                     <TypeBadge type={item.sticker_type} />
                   </div>
                   {item.author && (
-                    <Link
+                    <HoverPrefetchLink
                       href={`/creator/${encodeURIComponent(item.author)}`}
                       onClick={(e) => e.stopPropagation()}
                       className="text-xs text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 truncate block"
                     >
                       {item.author}
-                    </Link>
+                    </HoverPrefetchLink>
                   )}
                 </div>
                 <button

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
+import HoverPrefetchLink from '@/components/HoverPrefetchLink';
 import { useRouter } from 'next/navigation';
 import { useFavorites } from '@/hooks/useFavorites';
 import Sparkline from '@/components/Sparkline';
@@ -688,7 +688,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
                         key={item.id}
                         className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors group"
                       >
-                        <Link href={`/sticker/${item.id}`} className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <HoverPrefetchLink href={`/sticker/${item.id}`} className="flex items-center gap-2.5 flex-1 min-w-0">
                           <RankBadge rank={item.rank} />
                           <Thumb id={item.id} name={item.name} image_url={item.image_url} size={48} />
                           <div className="flex-1 min-w-0">
@@ -703,7 +703,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
                             )}
                           </div>
                           <DeltaChip delta={item.delta} isNew={item.isNew} />
-                        </Link>
+                        </HoverPrefetchLink>
                         <button
                           onClick={() => toggle(item.id)}
                           aria-label={isFavorite(item.id) ? 'Remove from favorites' : 'Add to favorites'}
@@ -771,7 +771,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
                 </div>
                 <div className="p-2">
                   {country.trending.map((item) => (
-                    <Link
+                    <HoverPrefetchLink
                       key={item.id}
                       href={`/sticker/${item.id}`}
                       className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors text-left group"
@@ -794,7 +794,7 @@ export default function HomeClient({ initialDashboard, initialTrending }: HomeCl
                           <span aria-hidden>🔥 </span>Hot
                         </span>
                       )}
-                    </Link>
+                    </HoverPrefetchLink>
                   ))}
                 </div>
               </div>

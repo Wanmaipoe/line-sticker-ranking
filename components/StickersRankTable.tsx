@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
+import HoverPrefetchLink from '@/components/HoverPrefetchLink';
 import { useRouter } from 'next/navigation';
 import { COUNTRY_MAP, FEATURED_COUNTRIES } from '@/lib/countries';
 import TypeBadge from '@/components/TypeBadge';
@@ -47,7 +47,7 @@ function RankBadge({ rank }: { rank: number | null }) {
 // Sticker thumbnail linking to the detail page (shared by the desktop table + mobile cards).
 function Thumb({ id, name, image_url }: { id: string; name: string; image_url: string | null }) {
   return (
-    <Link
+    <HoverPrefetchLink
       href={`/sticker/${id}`}
       onClick={(e) => e.stopPropagation()}
       className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 block"
@@ -62,7 +62,7 @@ function Thumb({ id, name, image_url }: { id: string; name: string; image_url: s
           (e.target as HTMLImageElement).style.visibility = 'hidden';
         }}
       />
-    </Link>
+    </HoverPrefetchLink>
   );
 }
 
@@ -127,24 +127,24 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
                 <Thumb id={p.id} name={p.name} image_url={p.image_url} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <Link
+                    <HoverPrefetchLink
                       href={`/sticker/${p.id}`}
                       onClick={(e) => e.stopPropagation()}
                       className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate leading-tight"
                     >
                       {p.name}
-                    </Link>
+                    </HoverPrefetchLink>
                     <TypeBadge type={p.sticker_type} />
                   </div>
                   {p.author &&
                     (showAuthorLink ? (
-                      <Link
+                      <HoverPrefetchLink
                         href={`/creator/${encodeURIComponent(p.author)}`}
                         onClick={(e) => e.stopPropagation()}
                         className="text-xs text-gray-400 dark:text-gray-500 truncate hover:text-green-600 dark:hover:text-green-400 block"
                       >
                         {p.author}
-                      </Link>
+                      </HoverPrefetchLink>
                     ) : (
                       <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.author}</p>
                     ))}
@@ -227,7 +227,7 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
             >
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <Link
+                  <HoverPrefetchLink
                     href={`/sticker/${p.id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="w-9 h-9 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 block"
@@ -245,27 +245,27 @@ export default function StickersRankTable({ products, isFavorite, onToggleFavori
                         (e.target as HTMLImageElement).style.visibility = 'hidden';
                       }}
                     />
-                  </Link>
+                  </HoverPrefetchLink>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <Link
+                      <HoverPrefetchLink
                         href={`/sticker/${p.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate leading-tight hover:text-green-700 dark:hover:text-green-300"
                       >
                         {p.name}
-                      </Link>
+                      </HoverPrefetchLink>
                       <TypeBadge type={p.sticker_type} />
                     </div>
                     {p.author &&
                       (showAuthorLink ? (
-                        <Link
+                        <HoverPrefetchLink
                           href={`/creator/${encodeURIComponent(p.author)}`}
                           onClick={(e) => e.stopPropagation()}
                           className="text-xs text-gray-400 dark:text-gray-500 truncate hover:text-green-600 dark:hover:text-green-400 block"
                         >
                           {p.author}
-                        </Link>
+                        </HoverPrefetchLink>
                       ) : (
                         <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.author}</p>
                       ))}
