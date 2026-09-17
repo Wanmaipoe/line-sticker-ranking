@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useOwnerMap } from '@/hooks/useOwnerMap';
-import { useChartColors } from '@/lib/theme';
+import { useChartColors, useTheme } from '@/lib/theme';
 import {
   LineChart,
   Line,
@@ -15,6 +15,11 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  useXAxisScale,
+  useYAxisScale,
+  usePlotArea,
+  ZIndexLayer,
+  DefaultZIndexes,
 } from 'recharts';
 import {
   parseLineReport,
@@ -57,18 +62,191 @@ function money(n: number | null | undefined, currency: string | null) {
 }
 
 const OWNER_COLORS = [
-  'bg-green-50 text-green-700 border-green-200',
+  'bg-yellow-50 text-yellow-800 border-yellow-200',
   'bg-blue-50 text-blue-700 border-blue-200',
   'bg-purple-50 text-purple-700 border-purple-200',
   'bg-amber-50 text-amber-700 border-amber-200',
-  'bg-pink-50 text-pink-700 border-pink-200',
+  'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
   'bg-cyan-50 text-cyan-700 border-cyan-200',
 ];
 
 // Same hues as OWNER_COLORS, in the same order, so an owner's chip and their chart line match.
 // Recharts needs real colour values, not Tailwind class names.
-const OWNER_HEX = ['#16a34a', '#2563eb', '#9333ea', '#d97706', '#db2777', '#0891b2'];
+//
+// No green and no pink/red: the Trending labels colour a rise green and a fall red, so an owner drawn
+// in green read as "going up". Slots 0 and 4 (were green-600 and pink-600) are now brown (yellow-800)
+// and magenta (fuchsia-700). Checked with the dataviz palette validator (OKLab ΔE×100, normal vision):
+// brown is >= 16.8 from every other line, Total and the Unassigned grey, and 17.5 from the trend red;
+// magenta is 23.9 from the trend red. Blue/purple/amber/cyan keep their slots so existing owners
+// keep their colours. Known limit: blue vs purple is hard to tell apart for deuteranopes (ΔE 1.3);
+// each line also carries its name in the legend and tooltip and a coloured dot on every label.
+const OWNER_HEX = ['#854d0e', '#2563eb', '#9333ea', '#d97706', '#a21caf', '#0891b2'];
 const UNASSIGNED_HEX = '#a8a29e';
+
+// The chart's everyone-added-up series. Its dataKey is one no owner name can collide with (owner
+// names are typed by people); it is labelled "Total". Neutral ink, not a hue, so it never reads as
+// another owner.
+const TOTAL = '__total__';
+const TOTAL_HEX = { light: '#374151', dark: '#e5e7eb' };
+
+/** Month-over-month change in percent, or null when the earlier month has nothing to compare to. */
+function pctChange(prev: number, cur: number): number | null {
+  if (!(prev > 0)) return null;
+  return ((cur - prev) / prev) * 100;
+}
+
+/** "▲ 12.3%", "▼ 4.5%", "0%". One decimal under 10%, whole numbers from there up. */
+function formatChange(p: number): string {
+  const abs = Math.abs(p);
+  const shown = abs < 10 ? abs.toFixed(1) : Math.round(abs).toLocaleString();
+  if (Number(shown.replace(/,/g, '')) === 0) return '0%';
+  return `${p > 0 ? '▲' : '▼'} ${shown}%`;
+}
+
+type ChartRow = Record<string, string | number>;
+
+/** Row field: calendar months since the previous loaded month (1 unless a month was never uploaded). */
+const SPAN = '__span';
+
+/** "2026.06" -> a month count, or null for a report whose period could not be read. */
+function monthIndex(key: string): number | null {
+  const [y, m] = key.split('.').map(Number);
+  return Number.isFinite(y) && Number.isFinite(m) ? y * 12 + m : null;
+}
+
+/** " (2 mo)" when a change spans a month that was never uploaded, so it isn't read as month-over-month. */
+function spanSuffix(span: number, tight = false): string {
+  return span > 1 ? (tight ? `·${span}mo` : ` (${span} mo)`) : '';
+}
+
+/** Chip amounts: 3 significant figures (10,600 -> "10.6k", 219,000 -> "219k", 549 -> "549"). */
+function chipAmount(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return `${Number((v / 1_000_000).toPrecision(3))}M`;
+  if (a >= 1_000) return `${Number((v / 1_000).toPrecision(3))}k`;
+  return Math.round(v).toLocaleString();
+}
+
+/**
+ * Trending labels: the % change from one month to the next, for every line passed in, each drawn
+ * midway between its two points and just above the higher of them, so it sits over the stretch of
+ * line it describes. A dot in the line's colour leads each label: with several lines labelled, the
+ * dot (not the label's own colour, which says up or down) is what ties a number to its line.
+ *
+ * Lines that run close together would stack their labels on top of each other, so the labels in
+ * each gap between two months are spread vertically to at least one label height apart: pushed down
+ * where they collide, then, if that runs the lowest past the bottom of the plot, pushed back up from
+ * the bottom - moving only labels that actually collide, so labels nothing crowds stay on their line.
+ * No label is lifted above the top of the SVG (it would be clipped).
+ *
+ * With many months on a narrow screen, labels in neighbouring gaps would overlap sideways, so only
+ * every Nth gap is labelled then, counted back from the latest (which is always labelled). The
+ * tooltip still shows every line's change for every month.
+ *
+ * Rendered as a child of <LineChart>. Recharts 3 draws custom children inside the chart's SVG, and
+ * useXAxisScale / useYAxisScale turn a month and an amount into the same pixels the lines use.
+ * Recharts 3 also paints by z-index layer, not by child order: a plain child lands UNDER the lines
+ * (400) and their dots (600), so another owner's line would run across a label. The labels get
+ * their own layer just above the dots, and stay below the hover cursor and highlighted dot.
+ */
+// Vertical space one label needs (its line-colour dot is the tallest glyph), normal and tight.
+const LABEL_GAP = { normal: 17, tight: 14 };
+// Lowest baseline that keeps a label's glyphs inside the SVG.
+const LABEL_TOP = 13;
+// Rough rendered width of a label: per character of text, plus the leading dot and a little air.
+const labelWidth = (text: string, tight: boolean) => text.length * (tight ? 6 : 6.6) + (tight ? 9 : 14) + 6;
+
+function ChangeLabels({
+  data,
+  series,
+  dark,
+}: {
+  data: ChartRow[];
+  series: { key: string; color: string }[];
+  dark: boolean;
+}) {
+  const xScale = useXAxisScale();
+  const yScale = useYAxisScale();
+  const plot = usePlotArea();
+  if (!xScale || !yScale || !plot) return null;
+  const up = dark ? '#4ade80' : '#16a34a';
+  const down = dark ? '#f87171' : '#dc2626';
+  const flat = '#9ca3af';
+  // A halo in the card's own background colour (bg-white / dark:bg-gray-900) keeps a label legible
+  // where it crosses a gridline or a line.
+  const halo = dark ? '#111827' : '#ffffff';
+  const bottom = plot.y + plot.height - 2;
+
+  const columns = data.slice(1).map((row, i) => {
+    const before = data[i];
+    const x0 = xScale(before.month, { position: 'middle' });
+    const x1 = xScale(row.month, { position: 'middle' });
+    if (x0 == null || x1 == null) return null;
+    // On a phone, or with many months loaded, neighbouring gaps are under ~75px wide and
+    // "▲ 8.2%" nearly touches "▼ 7.9%". Drop the spaces and a point of size there.
+    const tight = x1 - x0 < 75;
+    const suffix = spanSuffix(Number(row[SPAN] ?? 1), tight);
+    const column = series.flatMap(({ key, color }) => {
+      const prev = Number(before[key] ?? 0);
+      const cur = Number(row[key] ?? 0);
+      const p = pctChange(prev, cur);
+      const y0 = yScale(prev);
+      const y1 = yScale(cur);
+      if (p === null || y0 == null || y1 == null) return [];
+      const text = formatChange(p);
+      return [{ key, color, text: (tight ? text.replace(' ', '') : text) + suffix, p, y: Math.min(y0, y1) - 9 }];
+    });
+    column.sort((a, b) => a.y - b.y);
+    const gap = tight ? LABEL_GAP.tight : LABEL_GAP.normal;
+    for (let j = 1; j < column.length; j++) column[j].y = Math.max(column[j].y, column[j - 1].y + gap);
+    const last = column.length - 1;
+    if (last >= 0) {
+      column[last].y = Math.min(column[last].y, bottom);
+      for (let j = last - 1; j >= 0; j--) column[j].y = Math.min(column[j].y, column[j + 1].y - gap);
+      // A column too crowded for the plot's height would otherwise lift its top label out of the SVG.
+      for (let j = 0; j <= last; j++) column[j].y = Math.max(column[j].y, j ? column[j - 1].y + gap : LABEL_TOP);
+    }
+    return { month: String(row.month), x: (x0 + x1) / 2, width: x1 - x0, tight, column };
+  });
+
+  // Thin out gaps too narrow for their widest label, keeping the latest gap.
+  const present = columns.filter((c) => c !== null);
+  const widest = Math.max(0, ...present.flatMap((c) => c.column.map((l) => labelWidth(l.text, c.tight))));
+  const narrowest = Math.min(...present.map((c) => c.width));
+  const every = present.length && narrowest < widest ? Math.ceil(widest / narrowest) : 1;
+  const lastGap = columns.length - 1;
+  const labels = columns.flatMap((c, i) =>
+    c && (lastGap - i) % every === 0
+      ? c.column.map((l) => ({ ...l, id: `${c.month}-${l.key}`, x: c.x, tight: c.tight }))
+      : []
+  );
+
+  return (
+    <ZIndexLayer zIndex={DefaultZIndexes.scatter + 50}>
+      <g pointerEvents="none">
+        {labels.map((l) => (
+          <text
+            key={l.id}
+            x={l.x}
+            y={l.y}
+            textAnchor="middle"
+            fontSize={l.tight ? 10 : 11}
+            fontWeight={600}
+            stroke={halo}
+            strokeWidth={4}
+            strokeLinejoin="round"
+            paintOrder="stroke"
+          >
+            <tspan fill={l.color} fontSize={l.tight ? 11 : 13}>
+              {l.tight ? '●' : '● '}
+            </tspan>
+            <tspan fill={l.text === '0%' ? flat : l.p > 0 ? up : down}>{l.text}</tspan>
+          </text>
+        ))}
+      </g>
+    </ZIndexLayer>
+  );
+}
 
 /** 528925 -> "529k", so the Y axis doesn't need six digits per tick. */
 function compact(v: number): string {
@@ -96,8 +274,13 @@ export default function RevenueClient() {
    *  before any report is loaded. */
   const ownerCount = Object.keys(ownerMapRaw).length;
   const chart = useChartColors();
+  const dark = useTheme() === 'dark';
 
   const [months, setMonths] = useState<LoadedMonth[]>([]);
+  // Trending: label every month-over-month % change on the income chart, on every line. Clicking a
+  // name (legend or summary chip) narrows the labels to that one line; clicking it again widens back.
+  const [trending, setTrending] = useState(false);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
   const [selected, setSelected] = useState<string>(ALL);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -227,10 +410,18 @@ export default function RevenueClient() {
       .map(([o]) => o);
   }, [monthlySplits]);
 
+  // A Total line only adds something when there is more than one owner to add up.
+  const showTotal = chartOwners.length > 1;
+
   const chartData = useMemo(() => {
     if (!monthlySplits) return null;
-    return monthlySplits.map((m) => {
-      const row: Record<string, string | number> = { month: m.label };
+    return monthlySplits.map((m, i) => {
+      const row: ChartRow = { month: m.label };
+      // Months since the previous LOADED month. If a month was never uploaded, a "change from the
+      // previous month" really spans two, and the labels and tooltip say so. Unknown periods count as 1.
+      const here = monthIndex(m.key);
+      const prev = i > 0 ? monthIndex(monthlySplits[i - 1].key) : null;
+      row[SPAN] = here !== null && prev !== null && here - prev > 1 ? here - prev : 1;
       // 0, not undefined: an owner with no packs that month genuinely earned nothing, and a gap
       // in the line would read as "no data" instead.
       for (const o of chartOwners) row[o] = 0;
@@ -240,9 +431,20 @@ export default function RevenueClient() {
         const jpy = s.afterTax ?? 0;
         row[s.owner] = rateOk ? Math.round(jpy * rateNum) : jpy;
       }
+      // Everyone, Unassigned included. Summed from the plotted (already rounded) values rather
+      // than converted from the JPY total, so the owners in a month's tooltip add up to it exactly.
+      if (chartOwners.length > 1) row[TOTAL] = chartOwners.reduce((sum, o) => sum + Number(row[o]), 0);
       return row;
     });
   }, [monthlySplits, chartOwners, rateOk, rateNum]);
+
+  // Every line on the chart, in legend order: Total, then owners by total earnings, Unassigned last.
+  const seriesKeys = useMemo(() => (showTotal ? [TOTAL, ...chartOwners] : chartOwners), [showTotal, chartOwners]);
+  const seriesColor = (key: string) => (key === TOTAL ? (dark ? TOTAL_HEX.dark : TOTAL_HEX.light) : hexOf(key));
+  const seriesName = (key: string) => (key === TOTAL ? 'Total' : key === UNASSIGNED ? 'Unassigned' : key);
+  // The narrowed-to line, if it is still on the chart (reassigning packs can remove an owner's line).
+  const focused = focusKey !== null && seriesKeys.includes(focusKey) ? focusKey : null;
+  const toggleFocus = (key: string) => setFocusKey((k) => (k === key ? null : key));
 
   const chartCurrency = rateOk ? 'THB' : 'JPY';
 
@@ -688,19 +890,103 @@ export default function RevenueClient() {
                 (that's the money the team splits); JPY until then rather than an empty chart. */}
             {chartData && chartData.length > 1 && (
               <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
-                <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                  <h2 className="font-bold text-gray-700 dark:text-gray-200">Income by owner</h2>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-bold text-gray-700 dark:text-gray-200">Income by owner</h2>
+                    <button
+                      type="button"
+                      onClick={() => setTrending((t) => !t)}
+                      aria-pressed={trending}
+                      title="Show the % change from each month to the next"
+                      className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                        trending
+                          ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      📈 Trending
+                    </button>
+                  </div>
                   <span className="text-xs text-gray-400 dark:text-gray-500">
                     After-tax {chartCurrency} per month
                     {!rateOk && ' — enter an exchange rate above to see this in THB'}
                   </span>
                 </div>
+                {trending && (
+                  <div className="mt-3">
+                    {/* From the first loaded month to the latest, per line. Same order and colours
+                        as the legend; each chip also narrows the chart's labels to that line. */}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Since {String(chartData[0].month)} (to {String(chartData[chartData.length - 1].month)})
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {seriesKeys.map((key) => {
+                        const first = Number(chartData[0][key] ?? 0);
+                        const last = Number(chartData[chartData.length - 1][key] ?? 0);
+                        const p = pctChange(first, last);
+                        // No % from a zero start: "new" if it earns something by the end, else a dash.
+                        const text = p !== null ? formatChange(p) : last > 0 ? 'new' : '—';
+                        // Endpoints that would print identically next to a real % change get exact figures.
+                        let from = chipAmount(first);
+                        let to = chipAmount(last);
+                        if (from === to && p !== null && text !== '0%') {
+                          from = Math.round(first).toLocaleString();
+                          to = Math.round(last).toLocaleString();
+                        }
+                        const isFocused = focused === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => toggleFocus(key)}
+                            aria-pressed={isFocused}
+                            title={isFocused ? 'Show % labels on every line again' : `Show % labels only on ${seriesName(key)}`}
+                            className={`inline-flex items-center gap-1.5 text-xs rounded-lg border px-2 py-1 transition-colors ${
+                              isFocused
+                                ? 'border-gray-400 dark:border-gray-500 bg-gray-50 dark:bg-gray-800'
+                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: seriesColor(key) }} />
+                            <span className={`text-gray-700 dark:text-gray-200 ${isFocused ? 'font-semibold' : ''}`}>
+                              {seriesName(key)}
+                            </span>
+                            <span className="text-gray-400 dark:text-gray-500 tabular-nums">
+                              {from} → {to}
+                            </span>
+                            <span
+                              className={`font-semibold tabular-nums ${
+                                p === null || text === '0%'
+                                  ? 'text-gray-400 dark:text-gray-500'
+                                  : p > 0
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-red-600 dark:text-red-400'
+                              }`}
+                            >
+                              {text}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">
+                      {focused
+                        ? `Chart labels: % change from the previous month on ${seriesName(focused)} only. Click it again to show every line.`
+                        : 'Chart labels: % change from the previous month on every line. Click a name to show only that line.'}
+                    </p>
+                  </div>
+                )}
 
                 {/* Numeric height, matching RankGraph: ResponsiveContainer with height="100%"
                     measured the wrapper at 8px here and drew nothing. */}
                 <div className="mt-4 -ml-2">
-                  <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 8 }}>
+                  {/* 360, not 280: with Trending on, every line carries a label per month and the
+                      owners earning little run close together near zero, so labels need the room.
+                      The same height with Trending off: resizing on toggle replays the line-draw
+                      animation. */}
+                  <ResponsiveContainer width="100%" height={360}>
+                    {/* top: 24 leaves room for a Trending label above the highest point. */}
+                    <LineChart data={chartData} margin={{ top: 24, right: 8, bottom: 0, left: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
                       <XAxis
                         dataKey="month"
@@ -721,14 +1007,19 @@ export default function RevenueClient() {
                         itemSorter={(item) =>
                           -(typeof item.value === 'number' ? item.value : Number(item.value ?? 0))
                         }
-                        formatter={(value, name) => {
+                        formatter={(value, name, item) => {
                           // Chart values are already in chartCurrency (THB when a rate is set, JPY
                           // otherwise). Show just that one figure — the header already says which.
                           const v = typeof value === 'number' ? value : Number(value ?? 0);
-                          return [
-                            `${Math.round(v).toLocaleString()} ${chartCurrency}`,
-                            String(name) === UNASSIGNED ? 'Unassigned' : String(name),
-                          ];
+                          let shown = `${Math.round(v).toLocaleString()} ${chartCurrency}`;
+                          // Trending: every line's change from the previous month, not only the
+                          // labelled one. The first month has nothing to compare against.
+                          if (trending && item?.dataKey != null) {
+                            const at = chartData.findIndex((r) => r.month === item.payload?.month);
+                            const p = at > 0 ? pctChange(Number(chartData[at - 1][String(item.dataKey)] ?? 0), v) : null;
+                            if (p !== null) shown += `  (${formatChange(p)}${spanSuffix(Number(chartData[at][SPAN] ?? 1))})`;
+                          }
+                          return [shown, String(name) === UNASSIGNED ? 'Unassigned' : String(name)];
                         }}
                         contentStyle={{
                           fontSize: 12,
@@ -742,16 +1033,43 @@ export default function RevenueClient() {
                         itemStyle={{ color: chart.tooltipText }}
                       />
                       <Legend
-                        // null disables recharts' own sort, so the legend keeps the Line render
-                        // order — chartOwners, which is total-earnings descending. Biggest on the
-                        // left. (Its default reorders to alphabetical.)
-                        itemSorter={null}
-                        formatter={(v: string) => (
-                          <span style={{ fontSize: 11, color: chart.legend }}>
-                            {v === UNASSIGNED ? 'Unassigned' : v}
-                          </span>
-                        )}
+                        // Explicit order: Total, then owners by total earnings, Unassigned last.
+                        // The default sorts alphabetically, and `null` (no sort) is not the render
+                        // order either: it is the order the lines FIRST mounted, so importing owners
+                        // after loading reports left the old Unassigned line in front.
+                        itemSorter={(item) => seriesKeys.indexOf(String(item.dataKey))}
+                        // Trending: a name narrows the % labels to that line (click again: every line).
+                        onClick={trending ? (entry) => entry.dataKey != null && toggleFocus(String(entry.dataKey)) : undefined}
+                        wrapperStyle={trending ? { cursor: 'pointer' } : undefined}
+                        formatter={(v: string, entry) => {
+                          const labelled = trending && focused !== null && entry.dataKey === focused;
+                          return (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: labelled ? chart.tooltipText : chart.legend,
+                                fontWeight: labelled ? 700 : undefined,
+                                textDecoration: labelled ? 'underline' : undefined,
+                              }}
+                            >
+                              {v === UNASSIGNED ? 'Unassigned' : v}
+                            </span>
+                          );
+                        }}
                       />
+                      {/* Total first, so it leads the legend. Drawn under the owners' lines. */}
+                      {showTotal && (
+                        <Line
+                          key={TOTAL}
+                          type="monotone"
+                          dataKey={TOTAL}
+                          name="Total"
+                          stroke={dark ? TOTAL_HEX.dark : TOTAL_HEX.light}
+                          strokeWidth={2}
+                          dot={{ r: 3, strokeWidth: 0, fill: dark ? TOTAL_HEX.dark : TOTAL_HEX.light }}
+                          activeDot={{ r: 5 }}
+                        />
+                      )}
                       {chartOwners.map((o) => (
                         <Line
                           key={o}
@@ -765,6 +1083,14 @@ export default function RevenueClient() {
                           activeDot={{ r: 5 }}
                         />
                       ))}
+                      {/* Last, so the labels sit on top of every line. */}
+                      {trending && (
+                        <ChangeLabels
+                          data={chartData}
+                          series={(focused ? [focused] : seriesKeys).map((key) => ({ key, color: seriesColor(key) }))}
+                          dark={dark}
+                        />
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -772,6 +1098,7 @@ export default function RevenueClient() {
                 <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2 leading-relaxed">
                   Each line is one owner&apos;s after-tax share for that month, using your current
                   owner assignments applied to every month. Unassigned packs are the dashed line.
+                  {showTotal && ' Total is everyone added together, Unassigned included.'}
                   {rateOk &&
                     ` THB is converted at 1 JPY = ${rateNum} for every month, so older months are estimates — each month really settled at its own rate.`}
                 </p>
