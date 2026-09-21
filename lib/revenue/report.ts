@@ -522,21 +522,28 @@ export interface SplitResult {
   unassignedCount: number;
   /** True when afterTax figures sum exactly to the footer's Amount Payable. */
   exact: boolean;
+  /** True when after-tax came from `fallbackTaxRate` because the file carries no payout summary. */
+  taxAssumed: boolean;
 }
 
 /**
  * Group items by owner and work out each owner's cut.
  *
  * After-tax is deliberately derived from the footer's Amount Payable rather than from each row,
- * because LINE withholds tax on the REPORT total, not per sticker. Two paths:
+ * because LINE withholds tax on the REPORT total, not per sticker. Three paths:
  *  - File ties out  -> allocate Amount Payable by weight; the parts sum to it exactly.
- *  - File is short  -> fall back to applying the tax rate per owner and flag it as inexact, since
+ *  - File is short  -> fall back to the footer's tax rate per owner and flag it as inexact, since
  *    handing out the full Amount Payable across a partial row set would overpay.
+ *  - No footer      -> use `fallbackTaxRate` and flag taxAssumed. LINE's "return-<creator>-<month>.csv"
+ *    detail export stops at the last data row: no Total Revenue Share, no Withholding Tax Rate, no
+ *    Amount Payable. Without a rate every afterTax stays null, which empties the THB column and the
+ *    chart, so the caller supplies the rate (from a month that does carry a footer, or typed in).
  */
 export function splitByOwner(
   items: ReportItem[],
   ownerOf: (itemId: string) => string | null | undefined,
-  report: Pick<ParsedReport, 'footer' | 'rowTotal' | 'tiesOut'>
+  report: Pick<ParsedReport, 'footer' | 'rowTotal' | 'tiesOut'>,
+  fallbackTaxRate?: number | null
 ): SplitResult {
   const buckets = new Map<string, OwnerShare>();
   let unassignedCount = 0;
@@ -573,6 +580,7 @@ export function splitByOwner(
 
   const { amountPayable, withholdingTaxRate } = report.footer;
   let exact = false;
+  let taxAssumed = false;
 
   if (report.tiesOut && amountPayable != null) {
     const parts = allocate(amountPayable, shares.map((s) => s.pretax));
@@ -580,7 +588,10 @@ export function splitByOwner(
     exact = true;
   } else if (withholdingTaxRate != null) {
     for (const s of shares) s.afterTax = Math.round(s.pretax * (1 - withholdingTaxRate / 100));
+  } else if (fallbackTaxRate != null && Number.isFinite(fallbackTaxRate) && fallbackTaxRate >= 0 && fallbackTaxRate < 100) {
+    for (const s of shares) s.afterTax = Math.round(s.pretax * (1 - fallbackTaxRate / 100));
+    taxAssumed = true;
   }
 
-  return { shares, unassignedCount, exact };
+  return { shares, unassignedCount, exact, taxAssumed };
 }

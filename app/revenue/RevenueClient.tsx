@@ -52,6 +52,17 @@ const ALL = '__all__';
 // the key drops the stale value and asks for the rate again — the only safe migration for a number
 // whose units changed.
 const RATE_KEY = 'lsr-revenue-rate-v2';
+// Withholding % used for a month whose file has no payout summary (LINE's "return-*.csv" export).
+const TAX_KEY = 'lsr-revenue-tax-v1';
+// LINE's rate for a Thai creator, and what every footer-carrying file here has shown. Used for any
+// month whose file has no payout summary, unless a rate is typed into the box beside the exchange
+// rate. A file that DOES carry a summary always uses LINE's own figures instead.
+const DEFAULT_TAX_RATE = 20.42;
+
+/** True when this report cannot say what was withheld: no payout summary and no tax rate. */
+function needsTaxRate(r: ParsedReport): boolean {
+  return !(r.tiesOut && r.footer.amountPayable != null) && r.footer.withholdingTaxRate == null;
+}
 
 // The uploaded CSV is read with FileReader and parsed in this component. It is never POSTed
 // anywhere — no fetch, no server action, no DB. Keep it that way: this file holds real payout data.
@@ -289,6 +300,8 @@ export default function RevenueClient() {
   const [copied, setCopied] = useState(false);
   // THB per 1 JPY (e.g. 0.2315). Thai FX boards quote yen per 100, so divide theirs by 100.
   const [rate, setRate] = useState('');
+  // Withholding %, only used for months whose file has no payout summary.
+  const [tax, setTax] = useState('');
   // Owners whose pack breakdown is expanded. Keyed by owner name, so a row stays open while you
   // reassign packs around it.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -299,6 +312,7 @@ export default function RevenueClient() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     try { setRate(localStorage.getItem(RATE_KEY) ?? ''); } catch {}
+    try { setTax(localStorage.getItem(TAX_KEY) ?? ''); } catch {}
   }, []);
 
   function updateRate(v: string) {
@@ -306,8 +320,22 @@ export default function RevenueClient() {
     try { localStorage.setItem(RATE_KEY, v); } catch {}
   }
 
+  function updateTax(v: string) {
+    setTax(v);
+    try { localStorage.setItem(TAX_KEY, v); } catch {}
+  }
+
   const rateNum = Number(rate);
   const rateOk = rate.trim() !== '' && Number.isFinite(rateNum) && rateNum > 0;
+
+  // Months whose file carries no payout summary, and the rate they are taxed at: DEFAULT_TAX_RATE
+  // unless a valid rate is typed in. A rate stated by another month is shown as a hint but never
+  // applied on its own — a month is only assumed to match LINE's standard rate, not its neighbours'.
+  const monthsNeedingTax = months.filter((m) => needsTaxRate(m.report));
+  const statedTaxRate = months.map((m) => m.report.footer.withholdingTaxRate).find((r) => r != null) ?? null;
+  const typedTax = Number(tax);
+  const taxIsTyped = tax.trim() !== '' && Number.isFinite(typedTax) && typedTax >= 0 && typedTax < 100;
+  const taxNum = taxIsTyped ? typedTax : DEFAULT_TAX_RATE;
 
   const toggleOwner = useCallback((owner: string) => {
     setExpanded((prev) => {
@@ -376,21 +404,41 @@ export default function RevenueClient() {
     return combineReports(months.map((m) => m.report));
   }, [months, selected]);
 
-  const split = useMemo(() => {
-    if (!report || !loaded) return null;
-    return splitByOwner(report.items, ownerOf, report);
-  }, [report, loaded, ownerOf]);
-
-  // Each month split on its own — the chart's series. Kept separate from `split` because the
-  // combined view deliberately loses the month axis.
+  // Each month split on its own — the chart's series, and the source of after-tax for the combined
+  // view below. Kept separate from `split` because the combined view loses the month axis.
   const monthlySplits = useMemo(() => {
     if (!loaded || months.length < 2) return null;
     return months.map((m) => ({
       key: m.key,
       label: m.label,
-      split: splitByOwner(m.report.items, ownerOf, m.report),
+      split: splitByOwner(m.report.items, ownerOf, m.report, taxNum),
     }));
-  }, [months, loaded, ownerOf]);
+  }, [months, loaded, ownerOf, taxNum]);
+
+  const split = useMemo(() => {
+    if (!report || !loaded) return null;
+    const base = splitByOwner(report.items, ownerOf, report, taxNum);
+    if (selected !== ALL || !monthlySplits) return base;
+    // Viewing every month at once: each month was settled under its OWN rule — its payout summary
+    // if the file carries one, otherwise the assumed rate — so after-tax is the sum of the months,
+    // never one rate applied to the pile. Combining first and taxing after let a month that states
+    // a rate tax the months that do not (a 15% June taxed August's revenue at 15% too). Items,
+    // counts, pre-tax and the pack lists still come from the combined report.
+    const perOwner = new Map<string, number | null>();
+    for (const m of monthlySplits) {
+      for (const sh of m.split.shares) {
+        const seen = perOwner.get(sh.owner);
+        // One month with no after-tax figure (no summary, no rate) makes the owner's total unknown.
+        perOwner.set(sh.owner, sh.afterTax == null || seen === null ? null : (seen ?? 0) + sh.afterTax);
+      }
+    }
+    return {
+      ...base,
+      shares: base.shares.map((sh) => (perOwner.has(sh.owner) ? { ...sh, afterTax: perOwner.get(sh.owner)! } : sh)),
+      exact: monthlySplits.every((m) => m.split.exact),
+      taxAssumed: monthlySplits.some((m) => m.split.taxAssumed),
+    };
+  }, [report, loaded, ownerOf, taxNum, selected, monthlySplits]);
 
   /** Owners appearing in any loaded month, ordered by total earnings so the legend leads with the biggest. */
   const chartOwners = useMemo(() => {
@@ -447,6 +495,24 @@ export default function RevenueClient() {
   const toggleFocus = (key: string) => setFocusKey((k) => (k === key ? null : key));
 
   const chartCurrency = rateOk ? 'THB' : 'JPY';
+
+  // What the two money tiles show. Taken from the split, not straight from the footer, because the
+  // footer only describes the months that HAVE one: viewing all months with one footer-less file
+  // among them summed a payout for the other months only, and the tile contradicted the table's
+  // total right below it. The split always covers every row on screen.
+  const payableShown = (() => {
+    const fromSplit =
+      split && split.shares.length && split.shares.every((s) => s.afterTax != null)
+        ? split.shares.reduce((a, s) => a + (s.afterTax ?? 0), 0)
+        : null;
+    return fromSplit ?? report?.footer.amountPayable ?? null;
+  })();
+  const withheldShown =
+    report && payableShown != null ? report.rowTotal - payableShown : (report?.footer.withholdingTaxAmount ?? null);
+  const effectiveTaxRate =
+    report && withheldShown != null && report.rowTotal > 0
+      ? Math.round((withheldShown / report.rowTotal) * 10000) / 100
+      : null;
 
   // Per-owner THB, converted from the JPY each owner is owed. Worked in satang (integer) and
   // allocated with the same largest-remainder pass as the JPY column, so the THB parts add up to
@@ -762,16 +828,18 @@ export default function RevenueClient() {
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2.5">
                   <p className="text-[11px] text-gray-400 dark:text-gray-500">
                     Withholding tax
-                    {report.footer.withholdingTaxRate != null && ` (${report.footer.withholdingTaxRate}%)`}
+                    {effectiveTaxRate != null && ` (${effectiveTaxRate}%${split.taxAssumed ? ', assumed' : ''})`}
                   </p>
                   <p className="text-lg font-bold text-red-500 dark:text-red-400 leading-tight">
-                    −{money(report.footer.withholdingTaxAmount, currency)}
+                    −{money(withheldShown, currency)}
                   </p>
                 </div>
                 <div className="bg-green-50 dark:bg-green-500/10 rounded-xl px-3 py-2.5">
-                  <p className="text-[11px] text-green-600 dark:text-green-400">Amount payable</p>
+                  <p className="text-[11px] text-green-600 dark:text-green-400">
+                    Amount payable{split.taxAssumed && ' (assumed)'}
+                  </p>
                   <p className="text-lg font-bold text-green-700 dark:text-green-300 leading-tight">
-                    {money(report.footer.amountPayable, currency)}
+                    {money(payableShown, currency)}
                   </p>
                 </div>
               </div>
@@ -885,6 +953,13 @@ export default function RevenueClient() {
                 </div>
               )}
             </section>
+
+            {months.length === 1 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl px-4 py-3">
+                Load a second month to get the &ldquo;Income by owner&rdquo; chart — it plots one point per
+                month, so it needs at least two.
+              </p>
+            )}
 
             {/* Trend — only meaningful with more than one month. THB once a rate is entered
                 (that's the money the team splits); JPY until then rather than an empty chart. */}
@@ -1161,6 +1236,39 @@ export default function RevenueClient() {
                 </span>
               </div>
 
+              {/* Only for files with no payout summary — with one, LINE's own figures are used. */}
+              {monthsNeedingTax.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <label htmlFor="wht" className="text-xs text-gray-500 dark:text-gray-400">
+                    Withholding tax:
+                  </label>
+                  <input
+                    id="wht"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    max="99"
+                    value={tax}
+                    onChange={(e) => updateTax(e.target.value)}
+                    placeholder={String(taxNum)}
+                    className="w-24 px-2 py-1 rounded-lg border-2 border-gray-200 dark:border-gray-700 focus:border-[#06c755] focus:outline-none text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-300 dark:placeholder:text-gray-500"
+                  />
+                  <span className="text-xs text-gray-500 dark:text-gray-400">%</span>
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                    {monthsNeedingTax.map((m) => m.label).join(', ')}{' '}
+                    {monthsNeedingTax.length === 1 ? 'has' : 'have'} no payout summary (LINE&apos;s
+                    &ldquo;return&rdquo; export stops at the last data row), so after-tax there uses{' '}
+                    {taxIsTyped ? `${taxNum}%` : `${DEFAULT_TAX_RATE}%`}
+                    {!taxIsTyped && ' by default'}. Change it here if LINE withheld a different rate.
+                    {!taxIsTyped &&
+                      statedTaxRate != null &&
+                      statedTaxRate !== DEFAULT_TAX_RATE &&
+                      ` Your ${months.find((m) => m.report.footer.withholdingTaxRate != null)?.label} file states ${statedTaxRate}%.`}
+                  </span>
+                </div>
+              )}
+
               {split.unassignedCount > 0 && (
                 <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/30 rounded-xl px-3 py-2.5 mt-3">
                   ⚠ {split.unassignedCount === 1
@@ -1313,7 +1421,9 @@ export default function RevenueClient() {
                 LINE pays in JPY.{' '}
                 {split.exact
                   ? 'After-tax figures split the report’s Amount Payable and add up to it exactly.'
-                  : 'After-tax figures are estimated by applying the withholding rate, because this file’s rows do not add up to its stated total.'}
+                  : split.taxAssumed
+                    ? `After-tax figures apply ${taxNum}% withholding, because this file has no payout summary to split — set the rate above if LINE withheld a different one.`
+                    : 'After-tax figures are estimated by applying the withholding rate, because this file’s rows do not add up to its stated total.'}
                 {rateOk &&
                   ` THB is converted at 1 JPY = ${rateNum} THB and also adds up exactly, but it is only as accurate as that rate — your bank’s rate on payout day is the one that decides what actually arrives.`}{' '}
                 Expand an owner (▶) to list their packs, biggest earner first; every column there
