@@ -181,6 +181,11 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
           ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS prev_id,
         (SELECT MIN(rank) FROM rankings
           WHERE product_id = ? AND country = c.value AND snapshot_date >= date('now', '-30 days')) AS best_30d,
+        -- Best ever, kept by the hourly scrape in pack_best (1 row per market). Deriving it here
+        -- would mean MIN(rank) over the pack's whole history: 2,520 rows for one market on a
+        -- long-charting pack, measured. See scripts/add-pack-best.mjs.
+        (SELECT best_rank FROM pack_best WHERE product_id = ? AND country = c.value) AS best_ever,
+        (SELECT best_date FROM pack_best WHERE product_id = ? AND country = c.value) AS best_ever_date,
         -- the market's newest snapshot, seeking idx_rankings_country_date_hour (1 row)
         (SELECT snapshot_date || printf('%02d', snapshot_hour) FROM rankings
           WHERE country = c.value ORDER BY snapshot_date DESC, snapshot_hour DESC LIMIT 1) AS market_key
@@ -194,25 +199,38 @@ export async function getLatestRankingsForProduct(client: Client, productId: str
       r.created_at,
       prev.rank AS rank_24h_ago,
       p.best_30d,
+      p.best_ever,
+      p.best_ever_date,
       CASE WHEN r.snapshot_date || printf('%02d', r.snapshot_hour) = p.market_key THEN 1 ELSE 0 END AS is_current
     FROM picks p
     JOIN rankings r ON r.rowid = p.cur_id               -- markets the pack never charted in drop out here
     LEFT JOIN rankings prev ON prev.rowid = p.prev_id
     ORDER BY p.ord`,
-    args: [productId, productId, productId, JSON.stringify(FEATURED_COUNTRIES)],
+    args: [productId, productId, productId, productId, productId, JSON.stringify(FEATURED_COUNTRIES)],
   });
-  return result.rows.map((row) => ({
-    country: row.country as string,
-    current_rank: row.current_rank as number,
-    snapshot_date: row.snapshot_date as string,
-    snapshot_hour: row.snapshot_hour as number,
-    // Real capture minute (the scrape runs near :30, not exactly on the hour). Sent so the chart
-    // labels this point at the true time and matches the history rows around it.
-    snapshot_minute: minuteOf(row.created_at as string | null),
-    rank_24h_ago: row.rank_24h_ago as number | null,
-    best_30d: row.best_30d as number | null,
-    is_current: (row.is_current as number) === 1, // is this rank from the country's latest snapshot?
-  }));
+  return result.rows.map((row) => {
+    // All-time best = the stored record, floored by the 30-day best this query already has. The
+    // floor covers the gaps where pack_best can lag: a record set by a scrape that ran before this
+    // table existed, or a snapshot written by another writer that skipped the upsert.
+    const stored = row.best_ever as number | null;
+    const best30 = row.best_30d as number | null;
+    const bestAll = stored == null ? best30 : best30 == null ? stored : Math.min(stored, best30);
+    return {
+      country: row.country as string,
+      current_rank: row.current_rank as number,
+      snapshot_date: row.snapshot_date as string,
+      snapshot_hour: row.snapshot_hour as number,
+      // Real capture minute (the scrape runs near :30, not exactly on the hour). Sent so the chart
+      // labels this point at the true time and matches the history rows around it.
+      snapshot_minute: minuteOf(row.created_at as string | null),
+      rank_24h_ago: row.rank_24h_ago as number | null,
+      best_30d: best30,
+      best_all: bestAll,
+      // Only when the stored record is the one shown — a 30-day floor has no date attached.
+      best_all_date: stored != null && bestAll === stored ? (row.best_ever_date as string | null) : null,
+      is_current: (row.is_current as number) === 1, // is this rank from the country's latest snapshot?
+    };
+  });
 }
 
 export interface LeaderboardSlot {

@@ -7,6 +7,7 @@ const COLUMN_HINTS: Record<string, string> = {
   current: 'Rank in this country right now. "—" means it has dropped out of the top 500',
   delta24h: 'Change vs. yesterday — ▲ means rank improved',
   best30d: 'Best (lowest) rank reached in the past 30 days',
+  bestAll: 'Peak = the best (lowest) rank this pack has ever reached here, since the site started tracking. Hover a value for the date it was set',
   freshness: 'How long ago this country was last seen ranking this sticker',
 };
 
@@ -18,6 +19,9 @@ interface RankRow {
   snapshot_minute?: number; // real capture minute, from created_at (see minuteOf in lib/db.ts)
   rank_24h_ago: number | null;
   best_30d: number | null;
+  best_all?: number | null;
+  /** The day the all-time best was set, when it is known. */
+  best_all_date?: string | null;
   is_current: boolean;
 }
 
@@ -35,6 +39,20 @@ function delta(current: number, prev: number | null) {
   if (diff < 0)
     return <span className="text-red-400 dark:text-red-400 font-semibold">▼{Math.abs(diff)}</span>;
   return <span className="text-gray-400 dark:text-gray-500">—</span>;
+}
+
+const PEAK_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const PEAK_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// "2026-06-12" -> "Friday, 12 Jun 2026", for the Peak cell's hover text. Hand-formatted from the
+// parts rather than via toLocaleDateString, and parsed as UTC: this title renders on the server
+// too, and a server in another locale or timezone would otherwise produce different text from the
+// visitor's browser — a hydration mismatch (the same reason DailyChampionsClient formats by hand).
+function formatPeakDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d) || m < 1 || m > 12) return iso;
+  const weekday = PEAK_DAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${weekday}, ${d} ${PEAK_MONTH_NAMES[m - 1]} ${y}`;
 }
 
 const MINUTE_MS = 60_000;
@@ -107,6 +125,7 @@ export default function GlobalRankTable({ rows, selectedCountry, onSelectCountry
             <TooltipTh colKey="current" label="Current" className="text-center px-3 py-2.5" />
             <TooltipTh colKey="delta24h" label="Δ24h" className="text-center px-3 py-2.5" />
             <TooltipTh colKey="best30d" label="Best 30d" className="text-center px-3 py-2.5" />
+            <TooltipTh colKey="bestAll" label="Peak" className="text-center px-3 py-2.5" />
             <TooltipTh colKey="freshness" label="Freshness" className="text-center px-3 py-2.5" />
             <th className="px-3 py-2.5"></th>
           </tr>
@@ -114,7 +133,7 @@ export default function GlobalRankTable({ rows, selectedCountry, onSelectCountry
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} className="text-center py-10 text-gray-400 dark:text-gray-500 text-sm">
+              <td colSpan={7} className="text-center py-10 text-gray-400 dark:text-gray-500 text-sm">
                 No data yet — wait for the cron job or run the seed script
               </td>
             </tr>
@@ -152,6 +171,12 @@ export default function GlobalRankTable({ rows, selectedCountry, onSelectCountry
                 </td>
                 <td className="text-center px-3 py-3 text-gray-500 dark:text-gray-400">
                   {row.best_30d != null ? `#${row.best_30d}` : '—'}
+                </td>
+                <td
+                  className="text-center px-3 py-3 font-medium text-gray-600 dark:text-gray-300"
+                  title={row.best_all_date ? `Peak set on ${formatPeakDate(row.best_all_date)}` : undefined}
+                >
+                  {row.best_all != null ? `#${row.best_all}` : '—'}
                 </td>
                 <td className="text-center px-3 py-3 text-gray-400 dark:text-gray-500 text-xs">
                   {nowMinute === null ? ' ' : freshnessLabel(row, nowMinute)}

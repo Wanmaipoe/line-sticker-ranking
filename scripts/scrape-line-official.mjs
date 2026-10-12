@@ -308,6 +308,23 @@ async function runFull() {
         args: [item.id, country, item.rank, snapshotDate, hour, nowIso],
       })));
 
+      // Keep each pack's best-ever rank for this market (the /sticker/[id] "All time" column).
+      // Reads back the rows just inserted — same transaction — and writes ONLY the packs that beat
+      // their own record, so a normal hour costs a handful of writes. Deriving this at read time
+      // instead would mean scanning a pack's whole history on every page render (~3,100 rows), and
+      // an index that answers it in one seek would be billed on every scraped row forever. See
+      // scripts/add-pack-best.mjs for the measurements.
+      statements.push({
+        sql: `INSERT INTO pack_best (product_id, country, best_rank, best_date)
+              SELECT product_id, country, rank, snapshot_date FROM rankings
+              WHERE country = ? AND snapshot_date = ? AND snapshot_hour = ?
+              ON CONFLICT(product_id, country) DO UPDATE SET
+                best_rank = excluded.best_rank,
+                best_date = excluded.best_date
+              WHERE excluded.best_rank < pack_best.best_rank`,
+        args: [country, snapshotDate, hour],
+      });
+
       await client.batch(statements, 'write');
       summary[country] = { items: ranking.length, product_writes: changedProducts.length };
       console.log(`[scraper] ${country} ${snapshotDate} h${hour}: ${ranking.length} ranks, ${changedProducts.length} product writes`);
