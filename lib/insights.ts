@@ -496,3 +496,90 @@ export async function getMarketInsights(client: Client): Promise<MarketInsights>
 
   return { asOf, countries, overall };
 }
+
+// ── weekday patterns ────────────────────────────────────────────────────────────────────────────
+
+export type DayMetric = 'peak' | 'debut';
+
+export interface WeekdayCount {
+  /** 0 = Sunday, matching SQLite's strftime('%w'). */
+  weekday: number;
+  events: number;
+  /** How many of that weekday the window holds — the divisor that makes weekdays comparable. */
+  days: number;
+  perDay: number;
+}
+
+export interface DayPattern {
+  metric: DayMetric;
+  weekdays: WeekdayCount[];
+  total: number;
+  /** Highest and lowest perDay, for the one-line summary. */
+  busiest: WeekdayCount;
+  quietest: WeekdayCount;
+  /** Per market, index 0 = Sunday: the average and the raw count behind it. */
+  byCountry: { country: string; perDay: number[]; events: number[] }[];
+}
+
+export interface DayPatterns {
+  from: string;
+  to: string;
+  patterns: DayPattern[];
+}
+
+/**
+ * The weekday rhythms shown on /insights, read straight out of day_patterns (42 rows) — the table
+ * scripts/compute-day-patterns.mjs refreshes once a day. Computing these here instead would mean a
+ * GROUP BY over ~21k rows per metric on every hourly render; see that script for the numbers.
+ *
+ * Returns null when the table is missing or empty (before the first run), so the page can skip the
+ * section rather than render a row of zeros.
+ */
+export async function getDayPatterns(client: Client): Promise<DayPatterns | null> {
+  let rows;
+  try {
+    rows = (
+      await client.execute(
+        `SELECT metric, country, weekday, events, days, window_from, window_to FROM day_patterns`
+      )
+    ).rows;
+  } catch {
+    return null; // table not created yet
+  }
+  if (!rows.length) return null;
+
+  const from = String(rows[0].window_from);
+  const to = String(rows[0].window_to);
+  const patterns: DayPattern[] = [];
+
+  for (const metric of ['peak', 'debut'] as const) {
+    const mine = rows.filter((r) => r.metric === metric);
+    if (!mine.length) continue;
+    const weekdays: WeekdayCount[] = [];
+    for (let w = 0; w < 7; w++) {
+      const same = mine.filter((r) => Number(r.weekday) === w);
+      const events = same.reduce((a, r) => a + Number(r.events), 0);
+      const days = Number(same[0]?.days ?? 0);
+      weekdays.push({ weekday: w, events, days, perDay: days ? events / days : 0 });
+    }
+    const byCountry = [...new Set(mine.map((r) => String(r.country)))].map((country) => {
+      const rows7 = Array.from({ length: 7 }, (_, w) =>
+        mine.find((r) => String(r.country) === country && Number(r.weekday) === w)
+      );
+      return {
+        country,
+        perDay: rows7.map((row) => (Number(row?.days ?? 0) ? Number(row?.events ?? 0) / Number(row?.days) : 0)),
+        events: rows7.map((row) => Number(row?.events ?? 0)),
+      };
+    });
+    patterns.push({
+      metric,
+      weekdays,
+      total: weekdays.reduce((a, x) => a + x.events, 0),
+      busiest: weekdays.reduce((a, b) => (b.perDay > a.perDay ? b : a)),
+      quietest: weekdays.reduce((a, b) => (b.perDay < a.perDay ? b : a)),
+      byCountry,
+    });
+  }
+  return patterns.length ? { from, to, patterns } : null;
+}

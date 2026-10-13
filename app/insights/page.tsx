@@ -1,6 +1,14 @@
 import { getDb } from '@/lib/db';
-import { getMarketInsights, type CountryInsight, type OverallInsight, type Share } from '@/lib/insights';
-import { COUNTRY_MAP } from '@/lib/countries';
+import {
+  getMarketInsights,
+  getDayPatterns,
+  type CountryInsight,
+  type OverallInsight,
+  type Share,
+  type DayPattern,
+  type DayPatterns,
+} from '@/lib/insights';
+import { COUNTRY_MAP, FEATURED_COUNTRIES } from '@/lib/countries';
 import JsonLd from '@/components/JsonLd';
 import BackButton from '@/components/BackButton';
 import { SITE_URL, SITE_NAME } from '@/lib/seo';
@@ -429,6 +437,250 @@ function CountryColumn({ c }: { c: CountryInsight }) {
   );
 }
 
+const FEATURED_ORDER: readonly string[] = FEATURED_COUNTRIES;
+
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Spelled out for the hover text, where "over 20 Tuesdays" has to read as English.
+const WEEKDAY_PLURAL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+// Columns run Monday to Sunday, like the calendar in components/DateNav.tsx. The data keeps
+// SQLite's strftime('%w') numbering (0 = Sunday), so this is display order only — every lookup
+// below still indexes by the real weekday number.
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+const DAY_PATTERN_COPY: Record<DayPattern['metric'], { title: string; rule: string; unit: string }> = {
+  debut: {
+    title: 'New packs reaching a top 500',
+    rule: 'One pack in one market counts as one, so a pack entering both Japan and Thailand counts twice.',
+    unit: 'packs per day',
+  },
+  peak: {
+    title: 'Packs hitting their best-ever rank',
+    rule: 'Counted the same way: one pack in one market counts as one.',
+    unit: 'packs per day',
+  },
+};
+
+interface GridRow {
+  key: string;
+  label: string;
+  perDay: number[];
+  events: number[];
+}
+
+/** All markets first, then each market in the page's usual order. */
+function gridRows(p: DayPattern): GridRow[] {
+  const rows: GridRow[] = [
+    {
+      key: 'all',
+      label: 'All markets',
+      perDay: p.weekdays.map((w) => w.perDay),
+      events: p.weekdays.map((w) => w.events),
+    },
+  ];
+  for (const country of FEATURED_ORDER) {
+    const m = p.byCountry.find((x) => x.country === country);
+    if (!m) continue;
+    const info = COUNTRY_MAP[country];
+    rows.push({
+      key: country,
+      label: `${info?.flag ?? ''} ${info?.name ?? country.toUpperCase()}`,
+      perDay: m.perDay,
+      events: m.events,
+    });
+  }
+  return rows;
+}
+
+const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+const fmt = (v: number) => (v < 1 ? v.toFixed(2) : v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString());
+
+/** How far below the busiest day the quietest one sits, as a percentage. */
+function swingPct(perDay: number[]): number {
+  const hi = Math.max(...perDay);
+  const lo = Math.min(...perDay);
+  return hi > 0 ? Math.round((1 - lo / hi) * 100) : 0;
+}
+
+/**
+ * One metric as a single grid: weekday across the top, one row per scope. Each cell prints the real
+ * per-day average and is shaded against ITS OWN row's average day, which is what makes rows with
+ * wildly different magnitudes (169 packs vs 2.1 changes) sit in one table honestly — shade carries
+ * the rhythm, the printed number keeps the absolute value.
+ *
+ * Replaced twelve separate bar panels: with weekday on the vertical axis and a private scale per
+ * panel, comparing Wednesday across markets meant scanning a 2,400px card and holding numbers in
+ * your head. Here a weekday is one column, so a weekly rhythm reads as a vertical band.
+ */
+function WeekGrid({ pattern }: { pattern: DayPattern }) {
+  const rows = gridRows(pattern);
+  const copy = DAY_PATTERN_COPY[pattern.metric];
+  // Stars mark the three busiest weekdays of the ALL MARKETS row — one ranking for the whole grid,
+  // so the market rows below can be read against the same three days rather than each having its own.
+  const overall = rows[0]?.perDay ?? [];
+  const top3 = overall
+    .map((value, weekday) => ({ value, weekday }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 3)
+    .map((x) => x.weekday);
+  const dayCounts = pattern.weekdays.map((w) => w.days); // per weekday — never one scalar for all seven
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[300px] border-separate border-spacing-0.5 text-xs">
+        <thead>
+          <tr>
+            <th className="w-[5.5rem] text-left font-normal text-[11px] text-gray-400 dark:text-gray-500 pl-0.5">
+              {copy.unit}
+            </th>
+            {WEEK_ORDER.map((d) => {
+              const rank = top3.indexOf(d);
+              return (
+                <th
+                  key={d}
+                  className={`font-medium text-[11px] pb-0.5 ${
+                    rank >= 0 ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'
+                  }`}
+                  title={rank >= 0 ? `#${rank + 1} busiest day across all markets` : undefined}
+                >
+                  {WEEKDAY_LABELS[d]}
+                  {rank >= 0 && (
+                    // Three stars for the busiest day, two for second, one for third — so the
+                    // ranking is readable without hovering, and without colour doing the work.
+                    <span className="text-[#06c755] ml-0.5 tracking-tighter" aria-label={`number ${rank + 1} busiest`}>
+                      {'★'.repeat(3 - rank)}
+                    </span>
+                  )}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const avg = mean(row.perDay);
+            const best = row.perDay.indexOf(Math.max(...row.perDay));
+            return (
+              <tr key={row.key}>
+                <th className="text-left font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap pr-1.5">
+                  {row.label}
+                </th>
+                {WEEK_ORDER.map((w) => {
+                  const value = row.perDay[w];
+                  // Shade by distance from this row's own average day: 0.7x or below is the palest
+                  // step, 1.3x or above the darkest. One hue, so it reads as "more" not "different".
+                  const ratio = avg > 0 ? value / avg : 1;
+                  const alpha = Math.min(0.55, Math.max(0.05, ((ratio - 0.7) / 0.6) * 0.5 + 0.05));
+                  const vsAvg = avg > 0 ? Math.round((ratio - 1) * 100) : 0;
+                  return (
+                    <td
+                      key={w}
+                      style={{ backgroundColor: `rgba(6, 199, 85, ${alpha.toFixed(3)})` }}
+                      className={`text-center tabular-nums rounded px-1 py-1.5 ${
+                        w === best
+                          ? 'font-bold text-gray-900 dark:text-white ring-1 ring-[#06c755]'
+                          : 'text-gray-700 dark:text-gray-200'
+                      }`}
+                      title={`${WEEKDAY_LABELS[w]}: ${fmt(value)} ${copy.unit} · ${row.events[w].toLocaleString()} over ${dayCounts[w]} ${WEEKDAY_PLURAL[w]} · ${vsAvg >= 0 ? '+' : ''}${vsAvg}% vs this row's average day`}
+                    >
+                      {fmt(value)}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** "Wednesday is busiest (169 a day) and Sunday quietest (93, 45% fewer)" — derived, never written
+ *  by hand, so it cannot drift from the data. */
+function findingSentence(p: DayPattern): string {
+  const copy = DAY_PATTERN_COPY[p.metric];
+  const perDay = p.weekdays.map((w) => w.perDay);
+  const hi = perDay.indexOf(Math.max(...perDay));
+  const lo = perDay.indexOf(Math.min(...perDay));
+  return `${WEEKDAY_LABELS[hi]} is busiest at ${fmt(perDay[hi])} ${copy.unit}, ${WEEKDAY_LABELS[lo]} quietest at ${fmt(perDay[lo])} (${swingPct(perDay)}% fewer).`;
+}
+
+/** Markets whose own busiest weekday differs from the all-markets one — the Japan-peaks-Friday
+ *  finding, found rather than asserted. */
+function exceptionSentence(p: DayPattern): string | null {
+  const overall = p.weekdays.map((w) => w.perDay).indexOf(Math.max(...p.weekdays.map((w) => w.perDay)));
+  const odd = p.byCountry
+    .filter((c) => c.perDay.indexOf(Math.max(...c.perDay)) !== overall)
+    .map((c) => ({ name: COUNTRY_MAP[c.country]?.name ?? c.country.toUpperCase(), day: WEEKDAY_LABELS[c.perDay.indexOf(Math.max(...c.perDay))] }));
+  if (!odd.length) return `All ${p.byCountry.length} markets peak on ${WEEKDAY_LABELS[overall]}.`;
+  const named = odd.map((o) => `${o.name} peaks on ${o.day}`).join(', ');
+  // "the rest" only if a market is actually left over. The all-markets row is a SUM, so its
+  // busiest day can be nobody's own busiest day — then every market lands in `odd` and the clause
+  // would be describing an empty set.
+  return odd.length < p.byCountry.length ? `${named} — the rest on ${WEEKDAY_LABELS[overall]}.` : `${named}.`;
+}
+
+function MetricBlock({ pattern, open }: { pattern: DayPattern; open: boolean }) {
+  const copy = DAY_PATTERN_COPY[pattern.metric];
+  const body = (
+    <>
+      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 leading-relaxed">{copy.rule}</p>
+      <div className="mt-2">
+        <WeekGrid pattern={pattern} />
+      </div>
+    </>
+  );
+  if (open) {
+    return (
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{copy.title}</h3>
+        <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+          {findingSentence(pattern)} {exceptionSentence(pattern)}
+        </p>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <details className="mt-4 group">
+      <summary className="cursor-pointer list-none flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+        <span className="text-gray-400 dark:text-gray-500 group-open:rotate-90 transition-transform">▸</span>
+        <span className="font-semibold text-gray-700 dark:text-gray-200">{copy.title}</span>
+        <span className="w-full sm:w-auto pl-5 sm:pl-0 text-xs text-gray-500 dark:text-gray-400">
+          {findingSentence(pattern)}
+        </span>
+      </summary>
+      <div className="pl-5">
+        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{exceptionSentence(pattern)}</p>
+        {body}
+      </div>
+    </details>
+  );
+}
+
+const DAY_METRIC_ORDER: DayPattern['metric'][] = ['debut', 'peak'];
+
+function WeekdayCard({ data }: { data: DayPatterns }) {
+  const patterns = DAY_METRIC_ORDER.map((m) => data.patterns.find((p) => p.metric === m)).filter(
+    (p): p is DayPattern => !!p
+  );
+  if (!patterns.length) return null;
+  return (
+    <section className={`${CARD} mt-6`}>
+      <h2 className={H2}>Which day of the week</h2>
+      <p className={SUB}>
+        {data.from} to {data.to}, rebuilt once a day. Every figure is an average per day, never a
+        total — the window holds a different number of each weekday as it grows. Packs already
+        charting when tracking began are left out; they would all look like they arrived on day one.
+        Shading compares a day with its own row&apos;s average day; hover a cell for the raw count.
+        ★★★ marks the busiest day across all markets, ★★ the second, ★ the third.
+      </p>
+      {patterns.map((p, i) => (
+        <MetricBlock key={p.metric} pattern={p} open={i === 0} />
+      ))}
+    </section>
+  );
+}
+
 export default async function InsightsPage() {
   let data: Awaited<ReturnType<typeof getMarketInsights>> = {
     asOf: null,
@@ -439,6 +691,12 @@ export default async function InsightsPage() {
       travelers: [], characterTravel: [],
     },
   };
+  let dayPatterns: DayPatterns | null = null;
+  try {
+    dayPatterns = await getDayPatterns(getDb());
+  } catch {
+    // Same graceful fallback as the main query: the section just doesn't render.
+  }
   try {
     data = await getMarketInsights(getDb());
   } catch {
@@ -617,6 +875,8 @@ export default async function InsightsPage() {
                 }}
               />
             </div>
+
+            {dayPatterns && <WeekdayCard data={dayPatterns} />}
 
             <section className={`${CARD} mt-6`}>
               <h2 className={H2}>How to read this</h2>
