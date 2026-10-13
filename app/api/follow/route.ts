@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { RANK_ALERTS_ENABLED } from '@/lib/features';
 import { followSticker, isValidEmail, verifyEmailHtml } from '@/lib/alerts';
 import { sendEmail } from '@/lib/email';
 
@@ -7,6 +8,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  // 410, not 404: the endpoint existed and may be cached in an old page bundle. Answer before
+  // touching the database or the mailer.
+  if (!RANK_ALERTS_ENABLED) {
+    return NextResponse.json({ error: 'Rank alerts are turned off' }, { status: 410 });
+  }
+
   let body: { email?: string; stickerId?: string };
   try {
     body = await req.json();

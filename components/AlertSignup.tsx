@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { RANK_ALERTS_ENABLED } from '@/lib/features';
 
 type Status = 'idle' | 'sending' | 'sent' | 'following' | 'error';
 
@@ -23,7 +24,16 @@ function rememberFollow(id: string) {
   }
 }
 
+/**
+ * Rank alerts are switched off (lib/features.ts), so the box renders nothing. A wrapper rather
+ * than an early return inside the form: the form's hooks must not run conditionally.
+ */
 export default function AlertSignup({ stickerId }: { stickerId: string }) {
+  if (!RANK_ALERTS_ENABLED) return null;
+  return <AlertSignupForm stickerId={stickerId} />;
+}
+
+function AlertSignupForm({ stickerId }: { stickerId: string }) {
   const [followed, setFollowed] = useState(false); // remembered on this device
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');

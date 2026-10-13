@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { RANK_ALERTS_ENABLED } from '@/lib/features';
 import { computeStickerEvents, digestEmailHtml, type DigestItem, type StickerEvent } from '@/lib/alerts';
 import { sendEmail } from '@/lib/email';
 
@@ -18,6 +19,10 @@ function authorized(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  // Feature off (lib/features.ts). Return before any read or send; the schedule stays in
+  // vercel.json so flipping the flag back is the only step needed to resume the digest.
+  if (!RANK_ALERTS_ENABLED) return NextResponse.json({ ok: true, disabled: 'rank alerts are off' });
 
   // ?preview=you@email.com — send a sample digest so we can eyeball the format on demand.
   const preview = req.nextUrl.searchParams.get('preview');

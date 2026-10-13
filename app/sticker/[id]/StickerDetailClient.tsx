@@ -194,7 +194,9 @@ export default function StickerDetailClient({
               {refreshing ? 'Loading...' : '↻ Refresh'}
             </button>
           </div>
-          <div className="mt-4">
+          {/* empty: while rank alerts are off (lib/features.ts) AlertSignup renders nothing,
+              and the wrapper would otherwise leave 16px of dead margin under the buttons. */}
+          <div className="mt-4 empty:mt-0">
             <AlertSignup stickerId={id} />
           </div>
         </div>
