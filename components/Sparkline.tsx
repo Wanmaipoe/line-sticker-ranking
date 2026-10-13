@@ -57,7 +57,10 @@ export default function Sparkline({ ranks, width = 88, height = 30 }: Props) {
           <circle cx={c.x} cy={c.y} r={i === coords.length - 1 ? 2.6 : 2} style={{ fill: stroke, stroke: 'var(--spark-halo)' }} strokeWidth={0.75} />
           {/* Bigger invisible target so the tooltip is easy to trigger on hover/tap. */}
           <circle cx={c.x} cy={c.y} r={hitR} fill="transparent" style={{ cursor: 'pointer' }}>
-            <title>Rank #{ranks[i]}</title>
+            {/* One string child, not two: React 19 renders <title> only when it has a single
+                child, so `Rank #{n}` ships as an EMPTY <title> from the server and then fails
+                hydration on the client. Template literal keeps it one child. */}
+            <title>{`Rank #${ranks[i]}`}</title>
           </circle>
         </g>
       ))}
