@@ -72,27 +72,78 @@ function money(n: number | null | undefined, currency: string | null) {
   return `${Math.round(n).toLocaleString()}${currency ? ` ${currency}` : ''}`;
 }
 
-const OWNER_COLORS = [
-  'bg-yellow-50 text-yellow-800 border-yellow-200',
-  'bg-blue-50 text-blue-700 border-blue-200',
-  'bg-purple-50 text-purple-700 border-purple-200',
-  'bg-amber-50 text-amber-700 border-amber-200',
-  'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
-  'bg-cyan-50 text-cyan-700 border-cyan-200',
-];
+/**
+ * The one source of truth for an owner's identity colour: the chip dot, the chart line and the
+ * legend all read from this array, so they cannot drift apart. There is no second table of Tailwind
+ * classes — the previous one encoded the same hues twice and the two spellings disagreed.
+ *
+ * No green and no red/pink: the Trending labels colour a rise green and a fall red, so an owner drawn
+ * in either reads as a trend rather than a person. Grey is reserved for Unassigned.
+ *
+ * Checked with the dataviz palette validator (OKLab ΔE×100) over EVERY pair, not just neighbours —
+ * every chip is on screen at once, so neighbours are not the only ones compared. The closest two to
+ * normal vision are cyan and blue at 19.6. The palette this replaces measured 10.1 (fuchsia vs
+ * purple) and put brown and amber in the same table, which is what made the chips hard to tell apart.
+ *
+ * Known limit: fuchsia vs blue is 7.5 for protanopes, inside the band that needs a second cue. Every
+ * chip prints the owner's name beside the dot and every line is named in the legend and the tooltip,
+ * so colour is never the only thing carrying identity.
+ *
+ * FIVE slots, not six. With green, red and grey spoken for there is no sixth hue that stays 15 from
+ * all of these: indigo (6.7 vs blue), orange (11.8 vs brown), teal (6.9 vs cyan) and slate (14.3 vs
+ * brown, and too grey to read as a colour at all) were each measured and each dragged the worst pair
+ * under the floor. A sixth owner reuses the first colour; the name beside the dot is what separates
+ * them. Add a sixth hue only with a validator run that still passes.
+ *
+ * The dark steps are CHOSEN, not the light ones reused: measured against the dark surface, the light
+ * brown and blue land at 2.5 and 2.6 against the 3:1 a mark needs, so both were lifted a step and
+ * amber and cyan brightened with them. Same five hue families in the same order, so an owner keeps
+ * their identity when the theme flips. Dark measures 16.1 on its closest normal-vision pair.
+ */
+const OWNER_HEX = {
+  light: ['#854d0e', '#1d4ed8', '#d946ef', '#d97706', '#0891b2'],
+  dark: ['#a16207', '#3b82f6', '#d946ef', '#f59e0b', '#06b6d4'],
+};
 
-// Same hues as OWNER_COLORS, in the same order, so an owner's chip and their chart line match.
-// Recharts needs real colour values, not Tailwind class names.
-//
-// No green and no pink/red: the Trending labels colour a rise green and a fall red, so an owner drawn
-// in green read as "going up". Slots 0 and 4 (were green-600 and pink-600) are now brown (yellow-800)
-// and magenta (fuchsia-700). Checked with the dataviz palette validator (OKLab ΔE×100, normal vision):
-// brown is >= 16.8 from every other line, Total and the Unassigned grey, and 17.5 from the trend red;
-// magenta is 23.9 from the trend red. Blue/purple/amber/cyan keep their slots so existing owners
-// keep their colours. Known limit: blue vs purple is hard to tell apart for deuteranopes (ΔE 1.3);
-// each line also carries its name in the legend and tooltip and a coloured dot on every label.
-const OWNER_HEX = ['#854d0e', '#2563eb', '#9333ea', '#d97706', '#a21caf', '#0891b2'];
-const UNASSIGNED_HEX = '#a8a29e';
+/**
+ * Unassigned is deliberately colourless. Grey reads as "not done yet", and the chip draws a hollow
+ * dashed ring instead of a filled dot, so it differs from an owner in SHAPE and not only in hue —
+ * it sits 14.3 from cyan, under the 15 the validator wants between two identities, which is fine
+ * for a marker that means "no identity yet" and is always labelled.
+ */
+const UNASSIGNED_HEX = '#9ca3af';
+
+/** The dot that carries an owner's identity. Hollow and dashed when there is no owner yet. */
+function OwnerDot({ hex, hollow = false }: { hex: string; hollow?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className="w-2 h-2 rounded-full flex-shrink-0"
+      style={hollow ? { border: `1.5px dashed ${hex}` } : { backgroundColor: hex }}
+    />
+  );
+}
+
+/**
+ * Owner chip: neutral surface, ink text, coloured dot. The text deliberately does NOT wear the
+ * owner's hue — tinted chips (bg-yellow-50 against bg-amber-50) differ by about two values of red
+ * and read as the same object, which is exactly the complaint this replaces. The dot is the only
+ * thing that carries colour, so chip separation is whatever the validated palette separation is.
+ */
+function OwnerChip({ name, hex, unassigned = false }: { name: string; hex: string; unassigned?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${
+        unassigned
+          ? 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400'
+          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200'
+      }`}
+    >
+      <OwnerDot hex={hex} hollow={unassigned} />
+      {name}
+    </span>
+  );
+}
 
 // The chart's everyone-added-up series. Its dataKey is one no owner name can collide with (owner
 // names are typed by people); it is labelled "Total". Neutral ink, not a hue, so it never reads as
@@ -297,6 +348,10 @@ export default function RevenueClient() {
   const [dragging, setDragging] = useState(false);
   const [newOwner, setNewOwner] = useState('');
   const [bulkOwner, setBulkOwner] = useState('');
+  // The assign list opens on the packs that still need an owner, because that is the only
+  // reason to open it. With a few hundred packs the unassigned ones are scattered through the
+  // list and finding them meant scrolling the whole thing.
+  const [assignFilter, setAssignFilter] = useState<'todo' | 'all'>('todo');
   const [copied, setCopied] = useState(false);
   // THB per 1 JPY (e.g. 0.2315). Thai FX boards quote yen per 100, so divide theirs by 100.
   const [rate, setRate] = useState('');
@@ -345,19 +400,15 @@ export default function RevenueClient() {
     });
   }, []);
 
-  const colorOf = useCallback(
-    (name: string) => OWNER_COLORS[owners.indexOf(name) % OWNER_COLORS.length] ?? OWNER_COLORS[0],
-    [owners]
-  );
-
-  /** Chart line colour for an owner — same index as their chip, so the two always agree. */
+  /** The owner's colour, for both their chip dot and their chart line, so the two always agree. */
   const hexOf = useCallback(
     (name: string) => {
       if (name === UNASSIGNED) return UNASSIGNED_HEX;
       const i = owners.indexOf(name);
-      return i < 0 ? UNASSIGNED_HEX : OWNER_HEX[i % OWNER_HEX.length];
+      const ramp = dark ? OWNER_HEX.dark : OWNER_HEX.light;
+      return i < 0 ? UNASSIGNED_HEX : ramp[i % ramp.length];
     },
-    [owners]
+    [owners, dark]
   );
 
   /**
@@ -884,8 +935,9 @@ export default function RevenueClient() {
                 {owners.map((o) => (
                   <span
                     key={o}
-                    className={`inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-xs font-medium border ${colorOf(o)}`}
+                    className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200"
                   >
+                    <OwnerDot hex={hexOf(o)} />
                     {o}
                     <button
                       onClick={() => removeOwner(o)}
@@ -1299,7 +1351,7 @@ export default function RevenueClient() {
                       const open = expanded.has(s.owner);
                       return (
                         <Fragment key={s.owner}>
-                          <tr className={isUn ? 'bg-amber-50/50 dark:bg-amber-500/10' : ''}>
+                          <tr className={isUn ? 'bg-gray-50/70 dark:bg-gray-800/40' : ''}>
                             <td className="py-2.5">
                               <button
                                 onClick={() => toggleOwner(s.owner)}
@@ -1315,13 +1367,11 @@ export default function RevenueClient() {
                                 >
                                   ▶
                                 </span>
-                                <span
-                                  className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                    isUn ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30' : colorOf(s.owner)
-                                  }`}
-                                >
-                                  {isUn ? 'Unassigned' : s.owner}
-                                </span>
+                                <OwnerChip
+                                  name={isUn ? 'Unassigned' : s.owner}
+                                  hex={hexOf(s.owner)}
+                                  unassigned={isUn}
+                                />
                               </button>
                             </td>
                             <td className="text-right text-gray-500 dark:text-gray-400 text-xs">{s.items}</td>
@@ -1435,21 +1485,45 @@ export default function RevenueClient() {
             <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:ring-1 dark:ring-white/10 border border-gray-100 dark:border-gray-800 p-5">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <h2 className="font-bold text-gray-700 dark:text-gray-200">Assign an owner to each pack</h2>
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    split.unassignedCount
-                      ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
-                      : 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-500/30'
-                  }`}
-                >
-                  {split.unassignedCount
-                    ? `${split.unassignedCount} left`
-                    : `All ${report.items.length} assigned`}
-                </span>
+                {/* The count was already where the eye goes, so it is the filter rather than a label
+                    beside one. Amber here is a STATUS — work remaining — not an identity; owners are
+                    identified by their dot, and grey means nobody owns it yet. */}
+                {split.unassignedCount ? (
+                  <div className="inline-flex items-center rounded-full border border-gray-200 dark:border-gray-700 p-0.5 text-xs">
+                    {([
+                      ['todo', `${split.unassignedCount} to assign`],
+                      ['all', `All ${report.items.length}`],
+                    ] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => setAssignFilter(key)}
+                        aria-pressed={assignFilter === key}
+                        className={`px-2.5 py-1 rounded-full transition-colors ${
+                          assignFilter === key
+                            ? key === 'todo'
+                              ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 font-medium'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-xs px-2 py-1 rounded-full bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-500/30">
+                    All {report.items.length} assigned
+                  </span>
+                )}
               </div>
 
               <div className="mt-4 divide-y divide-gray-50 dark:divide-gray-800">
-                {report.items.map((it) => {
+                {/* Once the last one is assigned there is nothing to filter to, so the list falls
+                    back to showing everything on its own rather than emptying out. */}
+                {(assignFilter === 'todo' && split.unassignedCount
+                  ? report.items.filter((it) => !ownerOf(it.itemId))
+                  : report.items
+                ).map((it) => {
                   const owner = ownerOf(it.itemId);
                   return (
                     <div key={it.itemId} className="py-3 flex items-center gap-3">
@@ -1492,20 +1566,25 @@ export default function RevenueClient() {
                         <p className="text-[11px] text-gray-400 dark:text-gray-500">{it.counts} sales</p>
                       </div>
 
-                      <select
-                        value={owner ?? ''}
-                        onChange={(e) => assign(it.itemId, e.target.value || null)}
-                        className={`text-xs rounded-lg border px-2 py-1.5 flex-shrink-0 max-w-[9rem] ${
-                          owner ? colorOf(owner) : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30'
-                        }`}
-                      >
-                        <option value="">Unassigned</option>
-                        {owners.map((o) => (
-                          <option key={o} value={o}>
-                            {o}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <OwnerDot hex={owner ? hexOf(owner) : UNASSIGNED_HEX} hollow={!owner} />
+                        <select
+                          value={owner ?? ''}
+                          onChange={(e) => assign(it.itemId, e.target.value || null)}
+                          className={`text-xs rounded-lg border px-2 py-1.5 max-w-[9rem] bg-white dark:bg-gray-800 ${
+                            owner
+                              ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200'
+                              : 'border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400'
+                          }`}
+                        >
+                          <option value="">Unassigned</option>
+                          {owners.map((o) => (
+                            <option key={o} value={o}>
+                              {o}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   );
                 })}
